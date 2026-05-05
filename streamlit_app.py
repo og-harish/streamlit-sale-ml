@@ -228,11 +228,27 @@ st.markdown(
     html, body, [class*="css"] {
         color: #0B1F1A;
     }
+    p, span, label, small, strong, em, li,
+    div[data-testid="stMarkdownContainer"],
+    div[data-testid="stCaptionContainer"] {
+        color: #0B1F1A;
+        opacity: 1;
+    }
     [data-testid="stAppViewContainer"] {
         background:
             radial-gradient(circle at 8% 4%, rgba(255, 180, 80, .28), transparent 30%),
             radial-gradient(circle at 100% 0%, rgba(31, 109, 91, .22), transparent 34%),
             linear-gradient(135deg, #FFFDF7 0%, #F7EFE2 55%, #EAF8F1 100%);
+    }
+    [data-testid="stMain"] p,
+    [data-testid="stMain"] span,
+    [data-testid="stMain"] label,
+    [data-testid="stMain"] small,
+    [data-testid="stMain"] li,
+    [data-testid="stMain"] div[data-testid="stMarkdownContainer"],
+    [data-testid="stMain"] div[data-testid="stCaptionContainer"] {
+        color: #071B17 !important;
+        opacity: 1 !important;
     }
     [data-testid="stSidebar"] {
         background: linear-gradient(180deg, #09231F 0%, #103B37 58%, #184D43 100%);
@@ -269,6 +285,45 @@ st.markdown(
         border: 1px solid rgba(255, 255, 255, .6);
         font-weight: 900;
     }
+    input, textarea,
+    div[data-baseweb="input"] *,
+    div[data-baseweb="textarea"] *,
+    div[data-baseweb="select"] *,
+    div[data-baseweb="popover"] *,
+    div[data-baseweb="menu"] * {
+        color: #071B17 !important;
+        -webkit-text-fill-color: #071B17 !important;
+        opacity: 1 !important;
+    }
+    input::placeholder,
+    textarea::placeholder {
+        color: #3D5B55 !important;
+        opacity: 1 !important;
+    }
+    .stButton button,
+    .stDownloadButton button,
+    button[kind] {
+        background: #103B37 !important;
+        color: #FFFFFF !important;
+        border: 1px solid rgba(7, 27, 23, .22) !important;
+        font-weight: 900 !important;
+    }
+    .stButton button *,
+    .stDownloadButton button *,
+    button[kind] * {
+        color: #FFFFFF !important;
+        -webkit-text-fill-color: #FFFFFF !important;
+    }
+    [data-testid="stSidebar"] .stButton button,
+    [data-testid="stSidebar"] .stDownloadButton button {
+        background: #FFB454 !important;
+        color: #071B17 !important;
+    }
+    [data-testid="stSidebar"] .stButton button *,
+    [data-testid="stSidebar"] .stDownloadButton button * {
+        color: #071B17 !important;
+        -webkit-text-fill-color: #071B17 !important;
+    }
     .hero {
         padding: 2.35rem;
         border-radius: 34px;
@@ -293,6 +348,10 @@ st.markdown(
         font-weight: 700;
         max-width: 980px;
     }
+    .hero, .hero * {
+        color: #FFFFFF !important;
+        opacity: 1 !important;
+    }
     .metric-card {
         border: 1px solid rgba(9, 35, 31, .16);
         background: rgba(255,255,255,.98);
@@ -303,6 +362,12 @@ st.markdown(
     .metric-label { color: #0F5A4F; font-size: .76rem; letter-spacing: .13em; text-transform: uppercase; font-weight: 900; }
     .metric-value { color: #071B17; font-size: 1.95rem; font-weight: 950; margin-top: .35rem; }
     .metric-detail { color: #2A4842; font-size: .93rem; font-weight: 700; margin-top: .25rem; }
+    .metric-card, .metric-card * {
+        opacity: 1 !important;
+    }
+    .metric-card .metric-label { color: #0F5A4F !important; }
+    .metric-card .metric-value { color: #071B17 !important; }
+    .metric-card .metric-detail { color: #2A4842 !important; }
     .alert-box {
         border-radius: 18px;
         padding: .9rem 1rem;
@@ -338,9 +403,38 @@ st.markdown(
         border: 1px solid rgba(9, 35, 31, .18);
         box-shadow: 0 12px 32px rgba(9, 35, 31, .09);
     }
+    div[data-testid="stAlert"] * {
+        color: #071B17 !important;
+        opacity: 1 !important;
+        font-weight: 750;
+    }
     .stDataFrame, .stPlotlyChart {
         background: rgba(255, 255, 255, .78);
         border-radius: 20px;
+    }
+    [data-testid="stExpander"] summary,
+    [data-testid="stExpander"] summary *,
+    [data-testid="stExpander"] div {
+        color: #071B17 !important;
+        opacity: 1 !important;
+    }
+    [data-testid="stMetric"] *,
+    [data-testid="stChatMessage"] *,
+    [data-testid="stChatInput"] *,
+    [data-testid="stRadio"] *,
+    [data-testid="stSelectbox"] *,
+    [data-testid="stNumberInput"] *,
+    [data-testid="stDateInput"] *,
+    [data-testid="stSlider"] * {
+        opacity: 1 !important;
+    }
+    [data-testid="stChatMessage"] {
+        background: rgba(255, 255, 255, .92);
+        border: 1px solid rgba(9, 35, 31, .14);
+        border-radius: 18px;
+    }
+    [data-testid="stChatMessage"] * {
+        color: #071B17 !important;
     }
     h1, h2, h3, h4 {
         color: #071B17;
