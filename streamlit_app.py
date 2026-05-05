@@ -10,7 +10,7 @@ import requests
 import streamlit as st
 from fpdf import FPDF, XPos, YPos
 from sklearn.compose import ColumnTransformer
-from sklearn.ensemble import IsolationForest, RandomForestRegressor
+from sklearn.ensemble import ExtraTreesRegressor, GradientBoostingRegressor, IsolationForest, RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
@@ -28,14 +28,14 @@ REQUIRED_COLUMNS = [
 ]
 
 COLUMN_ALIASES = {
-    "date": ["date", "order_date", "sale_date", "created_at", "timestamp"],
-    "region": ["region", "state", "location", "city", "area"],
-    "product_category": ["product_category", "category", "product", "item", "product_type"],
-    "units_sold": ["units_sold", "quantity", "qty", "units", "sales_count"],
-    "revenue": ["revenue", "sales", "amount", "total_price", "price"],
-    "unit_price": ["unit_price", "selling_price", "price", "rate", "mrp"],
-    "discount_pct": ["discount_pct", "discount", "discount_percent", "offer"],
-    "customer_reviews": ["customer_reviews", "review", "feedback", "comment", "customer_text"],
+    "date": ["date", "order_date", "sale_date", "created_at", "timestamp", "transaction_date", "invoice_date", "purchase_date"],
+    "region": ["region", "state", "location", "city", "area", "district", "country", "market", "zone"],
+    "product_category": ["product_category", "category", "product", "item", "product_type", "product_name", "sku", "department", "sub_category"],
+    "units_sold": ["units_sold", "quantity", "qty", "units", "sales_count", "items_sold", "order_qty", "count"],
+    "revenue": ["revenue", "sales", "amount", "total_price", "net_sales", "gross_sales", "order_value", "gmv", "subtotal"],
+    "unit_price": ["unit_price", "selling_price", "price", "rate", "mrp", "item_price", "list_price"],
+    "discount_pct": ["discount_pct", "discount", "discount_percent", "offer", "promo_discount", "coupon_discount"],
+    "customer_reviews": ["customer_reviews", "review", "feedback", "comment", "customer_text", "customer_review", "remarks", "rating_text"],
 }
 
 CORE_FIELDS = ["date", "units_sold", "revenue"]
@@ -93,9 +93,14 @@ NUMERIC_FEATURES = [
     "month",
     "year",
     "day_of_week",
+    "day_of_month",
+    "quarter",
+    "is_weekend",
     "lag_7",
     "lag_30",
     "rolling_mean_7",
+    "rolling_mean_30",
+    "rolling_std_7",
 ]
 
 CATEGORICAL_FEATURES = ["region", "product_category"]
@@ -137,6 +142,21 @@ st.markdown(
         background: rgba(216, 137, 76, .13);
         border: 1px solid rgba(216, 137, 76, .25);
     }
+    .upload-dropzone {
+        border: 1px dashed rgba(100, 170, 150, .75);
+        border-radius: 26px;
+        padding: 1rem 1.2rem;
+        background:
+            radial-gradient(circle at top left, rgba(216, 137, 76, .16), transparent 32%),
+            linear-gradient(135deg, rgba(16, 59, 55, .08), rgba(255, 255, 255, .76));
+        color: #17302E;
+    }
+    .upload-dropzone b { color: #103B37; }
+    .stFileUploader section {
+        border-radius: 22px;
+        border: 1px dashed rgba(31, 109, 91, .55);
+        background: rgba(255, 255, 255, .72);
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -148,11 +168,6 @@ def inr(value):
 
 
 def get_secret(name):
-    session_key = f"runtime_{name.lower()}"
-    session_value = st.session_state.get(session_key)
-    if session_value:
-        return str(session_value).strip()
-
     try:
         value = st.secrets.get(name)
         if value:
@@ -173,6 +188,32 @@ def ai_provider_status():
 @st.cache_data
 def load_sample_data():
     return pd.read_csv("sample_data/sample_sales.csv")
+
+
+def read_uploaded_dataset(uploaded_file):
+    if uploaded_file is None:
+        return load_sample_data(), "Sample dataset"
+
+    file_name = uploaded_file.name.lower()
+    extension = file_name.rsplit(".", 1)[-1] if "." in file_name else "csv"
+    uploaded_file.seek(0)
+
+    try:
+        if extension in {"csv", "txt", "tsv"}:
+            separator = "\t" if extension == "tsv" else None
+            return pd.read_csv(uploaded_file, sep=separator, engine="python"), uploaded_file.name
+        if extension in {"xlsx", "xls"}:
+            return pd.read_excel(uploaded_file), uploaded_file.name
+        if extension == "jsonl":
+            return pd.read_json(uploaded_file, lines=True), uploaded_file.name
+        if extension == "json":
+            return pd.read_json(uploaded_file), uploaded_file.name
+        if extension == "parquet":
+            return pd.read_parquet(uploaded_file), uploaded_file.name
+    except Exception as exc:
+        raise ValueError(f"Could not parse {uploaded_file.name}. Please check the file format. Details: {exc}") from exc
+
+    raise ValueError("Unsupported file type. Upload CSV, TSV, TXT, Excel, JSON, JSONL, or Parquet sales data.")
 
 
 def normalize_column_name(name):
@@ -296,15 +337,63 @@ def preprocess_data(df, mapping):
     clean["month"] = clean["date"].dt.month
     clean["year"] = clean["date"].dt.year
     clean["day_of_week"] = clean["date"].dt.dayofweek
+    clean["day_of_month"] = clean["date"].dt.day
+    clean["quarter"] = clean["date"].dt.quarter
+    clean["is_weekend"] = clean["day_of_week"].isin([5, 6]).astype(int)
     clean["lag_7"] = clean["revenue"].shift(7)
     clean["lag_30"] = clean["revenue"].shift(30)
     clean["rolling_mean_7"] = clean["revenue"].rolling(7, min_periods=1).mean().shift(1)
+    clean["rolling_mean_30"] = clean["revenue"].rolling(30, min_periods=1).mean().shift(1)
+    clean["rolling_std_7"] = clean["revenue"].rolling(7, min_periods=2).std().shift(1)
 
-    for col in ["lag_7", "lag_30", "rolling_mean_7"]:
+    for col in ["lag_7", "lag_30", "rolling_mean_7", "rolling_mean_30"]:
         clean[col] = clean[col].fillna(clean["revenue"].expanding().mean())
         clean[col] = clean[col].fillna(clean["revenue"].mean())
+    clean["rolling_std_7"] = clean["rolling_std_7"].fillna(clean["rolling_std_7"].median() if clean["rolling_std_7"].notna().any() else 0)
 
     return clean.reset_index(drop=True)
+
+
+def regression_pipeline(regressor):
+    preprocessor = ColumnTransformer(
+        transformers=[
+            ("num", "passthrough", NUMERIC_FEATURES),
+            ("cat", OneHotEncoder(handle_unknown="ignore", sparse_output=False), CATEGORICAL_FEATURES),
+        ]
+    )
+    return Pipeline(steps=[("preprocess", preprocessor), ("model", regressor)])
+
+
+def regression_candidates():
+    return {
+        "RandomForest Quantum": RandomForestRegressor(
+            n_estimators=260,
+            min_samples_leaf=2,
+            random_state=42,
+            n_jobs=-1,
+        ),
+        "ExtraTrees Signal Hunter": ExtraTreesRegressor(
+            n_estimators=260,
+            min_samples_leaf=2,
+            random_state=42,
+            n_jobs=-1,
+        ),
+        "GradientBoosting Trend Learner": GradientBoostingRegressor(
+            n_estimators=180,
+            learning_rate=0.055,
+            max_depth=3,
+            random_state=42,
+        ),
+    }
+
+
+def score_predictions(y_true, predictions):
+    rmse = float(np.sqrt(mean_squared_error(y_true, predictions)))
+    mae = float(mean_absolute_error(y_true, predictions))
+    r2 = float(r2_score(y_true, predictions)) if len(y_true) > 1 else 0.0
+    wape = float(np.sum(np.abs(y_true - predictions)) / max(np.sum(np.abs(y_true)), 1) * 100)
+    accuracy = float(np.clip(100 - wape, 0, 100))
+    return {"RMSE": rmse, "MAE": mae, "R2": r2, "WAPE": wape, "Accuracy": accuracy}
 
 
 def build_model(df):
@@ -312,53 +401,47 @@ def build_model(df):
     x = df[features]
     y = df["revenue"]
 
-    preprocessor = ColumnTransformer(
-        transformers=[
-            ("num", "passthrough", NUMERIC_FEATURES),
-            ("cat", OneHotEncoder(handle_unknown="ignore"), CATEGORICAL_FEATURES),
-        ]
-    )
-
-    model = Pipeline(
-        steps=[
-            ("preprocess", preprocessor),
-            (
-                "model",
-                RandomForestRegressor(
-                    n_estimators=180,
-                    min_samples_leaf=2,
-                    random_state=42,
-                    n_jobs=-1,
-                ),
-            ),
-        ]
-    )
-
     if len(df) < 4:
-        model.fit(x, y)
-        y_test = y
-        predictions = model.predict(x)
+        x_train, y_train = x, y
+        x_eval, y_eval = x, y
         validation_dates = df["date"]
     else:
         test_size = 0.2 if len(df) >= 20 else 0.3
-        x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=test_size, shuffle=False)
-        model.fit(x_train, y_train)
-        predictions = model.predict(x_test)
-        validation_dates = df.loc[y_test.index, "date"]
+        x_train, x_eval, y_train, y_eval = train_test_split(x, y, test_size=test_size, shuffle=False)
+        validation_dates = df.loc[y_eval.index, "date"]
 
-    rmse = float(np.sqrt(mean_squared_error(y_test, predictions)))
-    mae = float(mean_absolute_error(y_test, predictions))
-    r2 = float(r2_score(y_test, predictions)) if len(y_test) > 1 else 0.0
+    leaderboard_rows = []
+    trained_models = {}
+    predictions_by_model = {}
+
+    for name, estimator in regression_candidates().items():
+        model = regression_pipeline(estimator)
+        model.fit(x_train, y_train)
+        predictions = model.predict(x_eval)
+        scores = score_predictions(y_eval.values, predictions)
+        leaderboard_rows.append({"Model": name, **scores})
+        trained_models[name] = model
+        predictions_by_model[name] = predictions
+
+    leaderboard = pd.DataFrame(leaderboard_rows).sort_values(["RMSE", "MAE"], ascending=True).reset_index(drop=True)
+    best_name = leaderboard.iloc[0]["Model"]
+    best_predictions = predictions_by_model[best_name]
+
+    final_model = regression_pipeline(regression_candidates()[best_name])
+    final_model.fit(x, y)
+    metrics = leaderboard.iloc[0].to_dict()
+    metrics["Best Model"] = best_name
+    metrics["Validation Rows"] = int(len(y_eval))
 
     validation = pd.DataFrame(
         {
             "date": validation_dates,
-            "actual": y_test.values,
-            "predicted": predictions,
+            "actual": y_eval.values,
+            "predicted": best_predictions,
         }
     )
 
-    return model, {"RMSE": rmse, "MAE": mae, "R2": r2}, validation
+    return final_model, metrics, validation, leaderboard
 
 
 def daily_revenue(df):
@@ -748,7 +831,7 @@ Total revenue: {inr(kpis['total_revenue'])}
 Total units sold: {kpis['total_units']:,.0f}
 Best region: {kpis['best_region']} ({inr(kpis['best_region_revenue'])})
 Best product category: {kpis['best_category']}
-Model performance: RMSE {metrics['RMSE']:.2f}, MAE {metrics['MAE']:.2f}, R2 {metrics['R2']:.3f}
+Model performance: Best model {metrics['Best Model']}, RMSE {metrics['RMSE']:.2f}, MAE {metrics['MAE']:.2f}, R2 {metrics['R2']:.3f}, WAPE {metrics['WAPE']:.1f}%, accuracy score {metrics['Accuracy']:.1f}%.
 Live sales forecast: Today {inr(live_forecast['today_estimate'])}, Tomorrow {inr(live_forecast['tomorrow_forecast'])}, Next 7 days {inr(live_forecast['next_7'])}, Next 30 days {inr(live_forecast['next_30'])}, confidence {live_forecast['confidence']}, direction {live_forecast['direction']}, weekly growth {live_forecast['weekly_growth']:.1f}%.
 India 2026 forecast: As of {india_forecast['as_of']}, full-year projection {inr(india_forecast['full_year'])}, remaining forecast {inr(india_forecast['remaining_forecast'])}, confidence {india_forecast['confidence']}.
 Tamil Nadu live May 2026 prediction: Month {inr(tn_forecast['monthly_prediction'])}, today {inr(tn_forecast['today_prediction'])}, current hour {inr(tn_forecast['hourly_prediction'])}, current minute {inr(tn_forecast['minute_prediction'])}, current second {inr(tn_forecast['second_prediction'])}, live counter {inr(tn_forecast['month_counter'])}, growth {tn_forecast['growth_rate']:.1f}%, confidence score {tn_forecast['confidence_score']}%, source {tn_forecast['source']}.
@@ -832,7 +915,7 @@ def local_chatbot_answer(question, df, kpis, sentiment_pct, issues, anomalies, i
     if any(word in lower for word in ["india", "2026"]):
         return f"India 2026 full-year sales are projected at {inr(india_forecast['full_year'])}, with {inr(india_forecast['remaining_forecast'])} remaining forecast and {india_forecast['confidence']} confidence."
     if any(word in lower for word in ["model", "accuracy", "rmse", "mae", "r2"]):
-        return f"The RandomForest model reports RMSE {metrics['RMSE']:.2f}, MAE {metrics['MAE']:.2f}, and R2 {metrics['R2']:.3f}. Use this as a directional business estimate, not a guaranteed financial forecast."
+        return f"The selected model is {metrics['Best Model']} with RMSE {metrics['RMSE']:.2f}, MAE {metrics['MAE']:.2f}, R2 {metrics['R2']:.3f}, WAPE {metrics['WAPE']:.1f}%, and an accuracy score of {metrics['Accuracy']:.1f}%. The platform compares multiple models and chooses the strongest time-aware validation result."
     if any(word in lower for word in ["recommend", "improve", "action", "strategy"]):
         return " ".join(recommendations)
     if any(word in lower for word in ["summary", "report", "overall"]):
@@ -888,7 +971,7 @@ User question:
     raise RuntimeError("No AI API key configured")
 
 
-def pdf_report(summary, recommendations, kpis, india_forecast, live_forecast, tn_forecast, anomalies):
+def pdf_report(summary, recommendations, kpis, metrics, india_forecast, live_forecast, tn_forecast, anomalies):
     pdf = FPDF()
     pdf.add_page()
     text_width = 180
@@ -896,6 +979,11 @@ def pdf_report(summary, recommendations, kpis, india_forecast, live_forecast, tn
     pdf.cell(text_width, 10, "Sales Prediction AI Report", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.set_font("Helvetica", size=10)
     pdf.multi_cell(text_width, 6, f"Total revenue: {inr(kpis['total_revenue'])}\nTotal units: {kpis['total_units']:,.0f}\nBest region: {kpis['best_region']}\nBest category: {kpis['best_category']}")
+    pdf.ln(2)
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(text_width, 8, "Predictive Intelligence Engine", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_font("Helvetica", size=10)
+    pdf.multi_cell(text_width, 6, f"Best model: {metrics['Best Model']}\nAccuracy score: {metrics['Accuracy']:.1f}%\nWAPE: {metrics['WAPE']:.1f}%\nRMSE: {metrics['RMSE']:.2f}\nMAE: {metrics['MAE']:.2f}\nR2: {metrics['R2']:.3f}")
     pdf.ln(2)
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(text_width, 8, "Live Sales Prediction", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
@@ -1028,32 +1116,44 @@ st.markdown(
 
 with st.sidebar:
     st.title("Sales AI")
-    uploaded_file = st.file_uploader("Upload sales CSV", type=["csv"])
+    st.markdown(
+        """
+        <div class="upload-dropzone">
+            <b>Drag and drop your sales dataset</b><br>
+            CSV, TSV, TXT, Excel, JSON, JSONL, or Parquet files are supported.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    uploaded_file = st.file_uploader(
+        "Upload any sales dataset",
+        type=["csv", "tsv", "txt", "xlsx", "xls", "json", "jsonl", "parquet"],
+        label_visibility="collapsed",
+    )
     use_sample = st.button("Load sample dataset", width="stretch")
     st.caption("Flexible upload: the app auto-detects date, region/city, category/product, quantity, revenue, discount, and review columns.")
     st.divider()
-    st.caption("AI chatbot configuration")
-    runtime_groq_key = st.text_input("Temporary Groq API key", type="password", help="Stored only in this Streamlit session. For production, use Streamlit Cloud secrets.")
-    runtime_gemini_key = st.text_input("Temporary Gemini API key", type="password", help="Optional fallback provider for this session only.")
-    if runtime_groq_key:
-        st.session_state["runtime_groq_api_key"] = runtime_groq_key.strip()
-    if runtime_gemini_key:
-        st.session_state["runtime_gemini_api_key"] = runtime_gemini_key.strip()
+    st.caption("AI backend configuration")
     provider_name, provider_state = ai_provider_status()
     st.success(f"{provider_name}: {provider_state}" if provider_state == "Connected" else "Local fallback active")
-    st.caption("Production secrets for Streamlit Cloud")
+    st.caption("Keys are read only from Streamlit secrets or server environment variables, never from visible frontend inputs.")
     st.code("GROQ_API_KEY = \"your_key\"\nGROQ_MODEL = \"llama-3.3-70b-versatile\"\nGEMINI_API_KEY = \"your_key\"", language="toml")
 
 
 try:
-    raw_df = pd.read_csv(uploaded_file) if uploaded_file is not None and not use_sample else load_sample_data()
+    raw_df, dataset_name = ("", "")
+    if uploaded_file is not None and not use_sample:
+        raw_df, dataset_name = read_uploaded_dataset(uploaded_file)
+    else:
+        raw_df, dataset_name = load_sample_data(), "Sample dataset"
 except Exception as exc:
-    st.error(f"Could not read the CSV file: {exc}")
+    st.error(f"Could not read the dataset file: {exc}")
     st.stop()
 
 detected_mapping = auto_detect_column_mapping(raw_df)
 mapping_warnings = mapping_completeness(detected_mapping)
 with st.expander("Dataset preview and column mapping", expanded=bool(mapping_warnings)):
+    st.caption(f"Active file: {dataset_name} | Rows: {len(raw_df):,} | Columns: {len(raw_df.columns):,}")
     st.markdown("#### Uploaded Dataset Preview")
     st.dataframe(raw_df.head(12), width="stretch")
     column_mapping = render_column_mapping(raw_df, detected_mapping)
@@ -1075,9 +1175,10 @@ if len(clean_df) < 2:
     st.stop()
 
 with st.expander("Cleaned dataset preview", expanded=False):
-    st.dataframe(clean_df[REQUIRED_COLUMNS + ["month", "year", "day_of_week", "lag_7", "lag_30", "rolling_mean_7"]].head(12), width="stretch")
+    preview_columns = list(dict.fromkeys(REQUIRED_COLUMNS + NUMERIC_FEATURES))
+    st.dataframe(clean_df[preview_columns].head(12), width="stretch")
 
-model, metrics, validation = build_model(clean_df)
+model, metrics, validation, leaderboard = build_model(clean_df)
 forecast_chart = forecast_daily_sales(clean_df)
 live_forecast = live_sales_prediction(clean_df)
 india_forecast = india_2026_forecast(clean_df)
@@ -1113,6 +1214,18 @@ with tab_dashboard:
         metric_card("Best Region", kpis["best_region"], inr(kpis["best_region_revenue"]))
     with cols[3]:
         metric_card("Best Category", kpis["best_category"], "Top product category")
+
+    st.markdown("### Predictive Intelligence Engine")
+    ai_cols = st.columns(4)
+    with ai_cols[0]:
+        metric_card("Best Model", metrics["Best Model"], "Auto-selected by validation")
+    with ai_cols[1]:
+        metric_card("Accuracy Score", f"{metrics['Accuracy']:.1f}%", "Lower WAPE means stronger accuracy")
+    with ai_cols[2]:
+        metric_card("Validation WAPE", f"{metrics['WAPE']:.1f}%", "Weighted absolute percent error")
+    with ai_cols[3]:
+        metric_card("Signal Features", str(len(NUMERIC_FEATURES) + len(CATEGORICAL_FEATURES)), "Trend, seasonality, lag and category signals")
+    st.dataframe(leaderboard[["Model", "RMSE", "MAE", "R2", "WAPE", "Accuracy"]], width="stretch")
 
     st.markdown("### Live Sales Prediction")
     live_cols = st.columns(4)
@@ -1182,6 +1295,7 @@ with tab_prediction:
 
     lag_7 = clean_df["revenue"].tail(7).mean()
     lag_30 = clean_df["revenue"].tail(30).mean()
+    rolling_std_7 = clean_df["revenue"].tail(7).std() if len(clean_df) > 1 else 0
     feature_row = pd.DataFrame(
         [
             {
@@ -1190,9 +1304,14 @@ with tab_prediction:
                 "month": pred_date.month,
                 "year": pred_date.year,
                 "day_of_week": pred_date.weekday(),
+                "day_of_month": pred_date.day,
+                "quarter": (pred_date.month - 1) // 3 + 1,
+                "is_weekend": int(pred_date.weekday() in [5, 6]),
                 "lag_7": lag_7,
                 "lag_30": lag_30,
                 "rolling_mean_7": lag_7,
+                "rolling_mean_30": lag_30,
+                "rolling_std_7": rolling_std_7 if np.isfinite(rolling_std_7) else 0,
                 "region": region,
                 "product_category": product,
             }
@@ -1202,7 +1321,8 @@ with tab_prediction:
     st.metric("Predicted Revenue", inr(predicted_revenue))
 
     st.markdown("### Model Leaderboard")
-    st.dataframe(pd.DataFrame([metrics]).assign(Model="RandomForest Regressor")[["Model", "RMSE", "MAE", "R2"]], width="stretch")
+    st.caption(f"Best live model: {metrics['Best Model']} | Accuracy score: {metrics['Accuracy']:.1f}% | Validation rows: {metrics['Validation Rows']}")
+    st.dataframe(leaderboard[["Model", "RMSE", "MAE", "R2", "WAPE", "Accuracy"]], width="stretch")
     st.plotly_chart(px.line(validation, x="date", y=["actual", "predicted"], title="Actual vs Predicted Validation"), width="stretch")
 
 with tab_chatbot:
@@ -1305,5 +1425,5 @@ with tab_report:
     ).to_csv(index=False).encode("utf-8")
     st.download_button("Download latest prediction CSV", prediction_output, "prediction_results.csv", "text/csv")
 
-    report_bytes = pdf_report(summary, recommendations, kpis, india_forecast, live_forecast, tn_forecast, anomalies)
+    report_bytes = pdf_report(summary, recommendations, kpis, metrics, india_forecast, live_forecast, tn_forecast, anomalies)
     st.download_button("Download PDF report", report_bytes, "sales_prediction_ai_report.pdf", "application/pdf")

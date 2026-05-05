@@ -4,12 +4,12 @@ A Streamlit Community Cloud-ready sales analytics app for flexible CSV upload, p
 
 ## Features
 
-- Upload CSV sales data or use the included sample dataset
+- Drag-and-drop CSV, TSV, TXT, Excel, JSON, JSONL, or Parquet sales data, or use the included sample dataset
 - Auto-detect flexible sales columns such as `order_date`, `city`, `product`, `qty`, `sales`, `amount`, `price`, `feedback`, and `comment`
 - Manually map columns with dropdowns if the app cannot detect them automatically
 - Work with partial data by filling missing region/category/review values and calculating revenue from `quantity x price` when possible
 - Clean missing values, remove duplicates, parse dates, and create time-series features
-- Train a browser/server-side Streamlit RandomForest revenue prediction model
+- Train a server-side predictive model leaderboard and automatically select the strongest validation model
 - Show KPI cards, revenue trend, region sales, category performance, forecast charts, and anomaly alerts
 - Show **Live Tamil Nadu E-Commerce Sales Prediction - 2026** with every-second simulated counter
 - Predict May 2026 Tamil Nadu monthly, daily, hourly, minute, and second-level estimated sales
@@ -17,7 +17,7 @@ A Streamlit Community Cloud-ready sales analytics app for flexible CSV upload, p
 - Predict 2026 India sales with today estimate, YTD actuals, remaining-year forecast, and full-year projection
 - Live sales prediction cards for today, tomorrow, next 7 days, and next 30 days
 - Analyze review sentiment, keywords, and recurring issues
-- Chatbot uses Groq or Gemini from Streamlit secrets, with richer dataset-aware local fallback answers
+- Chatbot uses Groq or Gemini from backend Streamlit secrets only, with richer dataset-aware local fallback answers
 - Download cleaned CSV, prediction CSV, and PDF report
 
 ## Run Locally
@@ -64,7 +64,7 @@ GROQ_MODEL = "llama-3.3-70b-versatile"
 GEMINI_API_KEY = "your_gemini_key_here"
 ```
 
-For quick testing, the sidebar also supports temporary Groq/Gemini keys. Temporary keys stay in the current Streamlit session and are not written to GitHub.
+API keys are not shown in the app UI and are not committed to GitHub. The app reads them only from Streamlit Cloud secrets, local `.streamlit/secrets.toml`, or server environment variables.
 
 If no API key is configured, the chatbot still works with local dataset-aware answers for questions about best regions, weak categories, forecasts, anomalies, model metrics, customer complaints, and recommendations.
 
@@ -73,6 +73,9 @@ If no API key is configured, the chatbot still works with local dataset-aware an
 - Rich AI context builder so chatbot answers vary by question and use real uploaded dataset metrics
 - Quick-question handling that avoids repeating the same answer on every Streamlit rerun
 - AI provider fallback: if Groq/Gemini fails, the app returns local business analysis instead of breaking
+- Futuristic drag-and-drop uploader with multi-format dataset parsing
+- Multi-model prediction leaderboard using RandomForest, ExtraTrees, and GradientBoosting with time-aware validation
+- Expanded feature engineering with lag, rolling, volatility, calendar, weekend, city, and product signals
 - Live forecast chart and executive insight text for portfolio-ready dashboard storytelling
 - PDF report now includes live sales prediction values
 - PDF report includes Tamil Nadu May 2026 live prediction, city/category forecasts, confidence score, and predictive-estimate disclaimer
