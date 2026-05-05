@@ -1374,12 +1374,6 @@ with st.sidebar:
     use_sample = st.button("Load sample dataset", width="stretch")
     st.caption("Flexible upload: the app auto-detects date, region/city, category/product, quantity, revenue, discount, and review columns.")
     st.divider()
-    st.caption("AI backend configuration")
-    provider_name, provider_state = ai_provider_status()
-    st.success(f"{provider_name}: {provider_state}" if provider_state == "Connected" else "Local fallback active")
-    st.caption("Keys are read only from Streamlit secrets or server environment variables, never from visible frontend inputs.")
-    st.code("GROQ_API_KEY = \"your_key\"\nGROQ_MODEL = \"llama-3.3-70b-versatile\"\nGEMINI_API_KEY = \"your_key\"", language="toml")
-    st.divider()
     requested_page = st.query_params.get("page", "Command Center")
     if isinstance(requested_page, list):
         requested_page = requested_page[0]
