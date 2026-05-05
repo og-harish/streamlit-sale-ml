@@ -68,6 +68,8 @@ GEMINI_API_KEY = "your_gemini_key_here"
 
 API keys are not shown in the app UI and are not committed to GitHub. The app reads them only from Streamlit Cloud secrets, local `.streamlit/secrets.toml`, or server environment variables.
 
+To use your Groq key on the live Streamlit site, paste it in **Streamlit Cloud -> App settings -> Secrets** as `GROQ_API_KEY`. Do not paste real keys into `streamlit_app.py`, README, or GitHub files.
+
 If no API key is configured, the chatbot still works with local dataset-aware answers for questions about best regions, weak categories, forecasts, anomalies, model metrics, customer complaints, and recommendations.
 
 ## Next-Level Upgrades Included
@@ -79,6 +81,7 @@ If no API key is configured, the chatbot still works with local dataset-aware an
 - Multi-model prediction leaderboard using RandomForest, ExtraTrees, and GradientBoosting with time-aware validation
 - Expanded feature engineering with lag, rolling, volatility, calendar, weekend, city, and product signals
 - Dedicated statewide Tamil Nadu live prediction page with district heatmap, live counter, and every-second velocity estimates
+- Higher-contrast launch screen, cards, upload panel, sidebar, and floating chatbot button for better visibility
 - Live forecast chart and executive insight text for portfolio-ready dashboard storytelling
 - PDF report now includes live sales prediction values
 - PDF report includes Tamil Nadu May 2026 live prediction, district/category forecasts, confidence score, and predictive-estimate disclaimer

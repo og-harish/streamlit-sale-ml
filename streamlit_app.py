@@ -225,60 +225,118 @@ st.markdown(
     """
     <style>
     .main .block-container { padding-top: 1.3rem; }
+    html, body, [class*="css"] {
+        color: #0B1F1A;
+    }
+    [data-testid="stAppViewContainer"] {
+        background:
+            radial-gradient(circle at 8% 4%, rgba(255, 180, 80, .28), transparent 30%),
+            radial-gradient(circle at 100% 0%, rgba(31, 109, 91, .22), transparent 34%),
+            linear-gradient(135deg, #FFFDF7 0%, #F7EFE2 55%, #EAF8F1 100%);
+    }
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #09231F 0%, #103B37 58%, #184D43 100%);
+    }
+    [data-testid="stSidebar"] * {
+        color: #FFFDF7 !important;
+    }
+    [data-testid="stSidebar"] code {
+        color: #0B1F1A !important;
+        background: #FFF6E8 !important;
+        border: 1px solid rgba(255, 180, 80, .5);
+    }
+    [data-testid="stSidebar"] .stButton button {
+        background: #FFB454;
+        color: #0B1F1A !important;
+        border: 0;
+        font-weight: 900;
+        box-shadow: 0 10px 28px rgba(255, 180, 80, .26);
+    }
     .hero {
-        padding: 2rem;
-        border-radius: 28px;
-        background: linear-gradient(135deg, #103B37 0%, #1F6D5B 55%, #D8894C 100%);
-        color: #FFF9EF;
-        box-shadow: 0 24px 80px rgba(16, 59, 55, .28);
+        padding: 2.35rem;
+        border-radius: 34px;
+        background:
+            linear-gradient(135deg, rgba(9, 35, 31, .98) 0%, rgba(16, 59, 55, .96) 55%, rgba(216, 96, 32, .96) 100%),
+            radial-gradient(circle at 15% 0%, rgba(255, 180, 80, .42), transparent 34%);
+        color: #FFFFFF;
+        box-shadow: 0 28px 90px rgba(9, 35, 31, .36);
+        border: 1px solid rgba(255, 255, 255, .22);
     }
-    .hero h1 { font-size: 2.6rem; margin-bottom: .4rem; }
-    .hero p { color: rgba(255, 249, 239, .82); font-size: 1.05rem; }
+    .hero h1 {
+        color: #FFFFFF;
+        font-size: clamp(2.4rem, 5vw, 4.4rem);
+        line-height: .96;
+        margin-bottom: .75rem;
+        text-shadow: 0 4px 26px rgba(0, 0, 0, .32);
+    }
+    .hero p {
+        color: #FFFDF7;
+        font-size: 1.18rem;
+        line-height: 1.72;
+        font-weight: 700;
+        max-width: 980px;
+    }
     .metric-card {
-        border: 1px solid rgba(23, 48, 46, .08);
-        background: rgba(255,255,255,.86);
-        padding: 1rem 1.15rem;
-        border-radius: 22px;
-        box-shadow: 0 16px 45px rgba(23, 48, 46, .08);
+        border: 1px solid rgba(9, 35, 31, .16);
+        background: rgba(255,255,255,.98);
+        padding: 1.1rem 1.2rem;
+        border-radius: 24px;
+        box-shadow: 0 18px 48px rgba(9, 35, 31, .14);
     }
-    .metric-label { color: #4E6F67; font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; font-weight: 800; }
-    .metric-value { color: #17302E; font-size: 1.7rem; font-weight: 900; margin-top: .35rem; }
-    .metric-detail { color: rgba(23, 48, 46, .62); font-size: .86rem; margin-top: .2rem; }
+    .metric-label { color: #0F5A4F; font-size: .76rem; letter-spacing: .13em; text-transform: uppercase; font-weight: 900; }
+    .metric-value { color: #071B17; font-size: 1.95rem; font-weight: 950; margin-top: .35rem; }
+    .metric-detail { color: #2A4842; font-size: .93rem; font-weight: 700; margin-top: .25rem; }
     .alert-box {
         border-radius: 18px;
         padding: .9rem 1rem;
-        background: rgba(216, 137, 76, .13);
-        border: 1px solid rgba(216, 137, 76, .25);
+        background: #FFF1DD;
+        color: #301405;
+        border: 1px solid rgba(216, 96, 32, .45);
+        font-weight: 750;
     }
     .upload-dropzone {
-        border: 1px dashed rgba(100, 170, 150, .75);
+        border: 2px dashed rgba(255, 180, 80, .85);
         border-radius: 26px;
-        padding: 1rem 1.2rem;
+        padding: 1.15rem 1.25rem;
         background:
-            radial-gradient(circle at top left, rgba(216, 137, 76, .16), transparent 32%),
-            linear-gradient(135deg, rgba(16, 59, 55, .08), rgba(255, 255, 255, .76));
-        color: #17302E;
+            radial-gradient(circle at top left, rgba(255, 180, 80, .26), transparent 32%),
+            linear-gradient(135deg, rgba(255, 255, 255, .18), rgba(255, 255, 255, .08));
+        color: #FFFDF7;
+        font-weight: 800;
     }
-    .upload-dropzone b { color: #103B37; }
+    .upload-dropzone b { color: #FFFFFF; font-size: 1.05rem; }
     .stFileUploader section {
         border-radius: 22px;
-        border: 1px dashed rgba(31, 109, 91, .55);
-        background: rgba(255, 255, 255, .72);
+        border: 2px dashed rgba(255, 180, 80, .72);
+        background: rgba(255, 253, 247, .96);
+        color: #0B1F1A;
+    }
+    div[data-testid="stAlert"] {
+        border-radius: 18px;
+        border: 1px solid rgba(9, 35, 31, .18);
+        box-shadow: 0 12px 32px rgba(9, 35, 31, .09);
+    }
+    .stDataFrame, .stPlotlyChart {
+        background: rgba(255, 255, 255, .78);
+        border-radius: 20px;
+    }
+    h1, h2, h3, h4 {
+        color: #071B17;
     }
     .floating-chat-button {
         position: fixed;
         right: 26px;
         bottom: 26px;
         z-index: 999999;
-        padding: .9rem 1.15rem;
+        padding: 1rem 1.3rem;
         border-radius: 999px;
-        background: linear-gradient(135deg, #103B37 0%, #1F6D5B 72%, #D8894C 100%);
-        color: #FFF9EF !important;
+        background: linear-gradient(135deg, #FFB454 0%, #F97316 45%, #103B37 100%);
+        color: #FFFFFF !important;
         text-decoration: none !important;
         font-weight: 900;
-        letter-spacing: .02em;
-        box-shadow: 0 18px 50px rgba(16, 59, 55, .34);
-        border: 1px solid rgba(255, 249, 239, .35);
+        letter-spacing: .03em;
+        box-shadow: 0 18px 50px rgba(249, 115, 22, .38);
+        border: 2px solid rgba(255, 255, 255, .82);
     }
     .floating-chat-button:hover {
         transform: translateY(-2px);
