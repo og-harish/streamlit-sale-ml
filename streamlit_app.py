@@ -41,16 +41,54 @@ COLUMN_ALIASES = {
 CORE_FIELDS = ["date", "units_sold", "revenue"]
 OPTIONAL_FIELDS = ["region", "product_category", "discount_pct", "customer_reviews", "unit_price"]
 
+PAGES = [
+    "Command Center",
+    "Live Tamil Nadu",
+    "Prediction Studio",
+    "Dataset Studio",
+    "AI Chatbot",
+    "Reports",
+]
+
 TAMIL_NADU_CITIES = [
     "Chennai",
     "Coimbatore",
     "Madurai",
-    "Trichy",
+    "Tiruchirappalli",
     "Salem",
     "Tirunelveli",
     "Erode",
     "Vellore",
     "Thanjavur",
+    "Tiruppur",
+    "Kanchipuram",
+    "Chengalpattu",
+    "Tiruvallur",
+    "Tiruvannamalai",
+    "Cuddalore",
+    "Villupuram",
+    "Kallakurichi",
+    "Dharmapuri",
+    "Krishnagiri",
+    "Namakkal",
+    "Karur",
+    "Dindigul",
+    "Theni",
+    "Sivaganga",
+    "Ramanathapuram",
+    "Virudhunagar",
+    "Thoothukudi",
+    "Tenkasi",
+    "Kanyakumari",
+    "Nagapattinam",
+    "Mayiladuthurai",
+    "Tiruvarur",
+    "Pudukkottai",
+    "Ariyalur",
+    "Perambalur",
+    "Ranipet",
+    "Tirupathur",
+    "Nilgiris",
 ]
 
 TAMIL_NADU_CATEGORIES = [
@@ -67,12 +105,82 @@ TN_CITY_MULTIPLIERS = {
     "Chennai": 1.38,
     "Coimbatore": 1.14,
     "Madurai": 0.98,
-    "Trichy": 0.88,
+    "Tiruchirappalli": 0.88,
     "Salem": 0.82,
     "Tirunelveli": 0.72,
     "Erode": 0.78,
     "Vellore": 0.75,
     "Thanjavur": 0.68,
+    "Tiruppur": 0.9,
+    "Kanchipuram": 0.84,
+    "Chengalpattu": 0.91,
+    "Tiruvallur": 0.86,
+    "Tiruvannamalai": 0.62,
+    "Cuddalore": 0.65,
+    "Villupuram": 0.61,
+    "Kallakurichi": 0.5,
+    "Dharmapuri": 0.52,
+    "Krishnagiri": 0.66,
+    "Namakkal": 0.58,
+    "Karur": 0.56,
+    "Dindigul": 0.64,
+    "Theni": 0.53,
+    "Sivaganga": 0.49,
+    "Ramanathapuram": 0.48,
+    "Virudhunagar": 0.59,
+    "Thoothukudi": 0.67,
+    "Tenkasi": 0.51,
+    "Kanyakumari": 0.63,
+    "Nagapattinam": 0.45,
+    "Mayiladuthurai": 0.43,
+    "Tiruvarur": 0.44,
+    "Pudukkottai": 0.5,
+    "Ariyalur": 0.38,
+    "Perambalur": 0.36,
+    "Ranipet": 0.57,
+    "Tirupathur": 0.46,
+    "Nilgiris": 0.42,
+}
+
+TN_CITY_COORDS = {
+    "Chennai": (13.0827, 80.2707),
+    "Coimbatore": (11.0168, 76.9558),
+    "Madurai": (9.9252, 78.1198),
+    "Tiruchirappalli": (10.7905, 78.7047),
+    "Salem": (11.6643, 78.1460),
+    "Tirunelveli": (8.7139, 77.7567),
+    "Erode": (11.3410, 77.7172),
+    "Vellore": (12.9165, 79.1325),
+    "Thanjavur": (10.7867, 79.1378),
+    "Tiruppur": (11.1085, 77.3411),
+    "Kanchipuram": (12.8342, 79.7036),
+    "Chengalpattu": (12.6819, 79.9888),
+    "Tiruvallur": (13.1439, 79.9089),
+    "Tiruvannamalai": (12.2253, 79.0747),
+    "Cuddalore": (11.7447, 79.7680),
+    "Villupuram": (11.9401, 79.4861),
+    "Kallakurichi": (11.7384, 78.9639),
+    "Dharmapuri": (12.1277, 78.1579),
+    "Krishnagiri": (12.5186, 78.2137),
+    "Namakkal": (11.2194, 78.1678),
+    "Karur": (10.9601, 78.0766),
+    "Dindigul": (10.3673, 77.9803),
+    "Theni": (10.0104, 77.4768),
+    "Sivaganga": (9.8433, 78.4809),
+    "Ramanathapuram": (9.3639, 78.8395),
+    "Virudhunagar": (9.5851, 77.9579),
+    "Thoothukudi": (8.7642, 78.1348),
+    "Tenkasi": (8.9590, 77.3152),
+    "Kanyakumari": (8.0883, 77.5385),
+    "Nagapattinam": (10.7672, 79.8449),
+    "Mayiladuthurai": (11.1018, 79.6529),
+    "Tiruvarur": (10.7661, 79.6344),
+    "Pudukkottai": (10.3797, 78.8208),
+    "Ariyalur": (11.1401, 79.0786),
+    "Perambalur": (11.2333, 78.8833),
+    "Ranipet": (12.9249, 79.3330),
+    "Tirupathur": (12.4950, 78.5678),
+    "Nilgiris": (11.4102, 76.6950),
 }
 
 TN_CATEGORY_MULTIPLIERS = {
@@ -156,6 +264,25 @@ st.markdown(
         border-radius: 22px;
         border: 1px dashed rgba(31, 109, 91, .55);
         background: rgba(255, 255, 255, .72);
+    }
+    .floating-chat-button {
+        position: fixed;
+        right: 26px;
+        bottom: 26px;
+        z-index: 999999;
+        padding: .9rem 1.15rem;
+        border-radius: 999px;
+        background: linear-gradient(135deg, #103B37 0%, #1F6D5B 72%, #D8894C 100%);
+        color: #FFF9EF !important;
+        text-decoration: none !important;
+        font-weight: 900;
+        letter-spacing: .02em;
+        box-shadow: 0 18px 50px rgba(16, 59, 55, .34);
+        border: 1px solid rgba(255, 249, 239, .35);
+    }
+    .floating-chat-button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 22px 58px rgba(16, 59, 55, .42);
     }
     </style>
     """,
@@ -394,6 +521,34 @@ def score_predictions(y_true, predictions):
     wape = float(np.sum(np.abs(y_true - predictions)) / max(np.sum(np.abs(y_true)), 1) * 100)
     accuracy = float(np.clip(100 - wape, 0, 100))
     return {"RMSE": rmse, "MAE": mae, "R2": r2, "WAPE": wape, "Accuracy": accuracy}
+
+
+def predict_revenue_scenario(model, clean_df, pred_date, region, product, units, discount):
+    lag_7 = clean_df["revenue"].tail(7).mean()
+    lag_30 = clean_df["revenue"].tail(30).mean()
+    rolling_std_7 = clean_df["revenue"].tail(7).std() if len(clean_df) > 1 else 0
+    feature_row = pd.DataFrame(
+        [
+            {
+                "units_sold": units,
+                "discount_pct": discount,
+                "month": pred_date.month,
+                "year": pred_date.year,
+                "day_of_week": pred_date.weekday(),
+                "day_of_month": pred_date.day,
+                "quarter": (pred_date.month - 1) // 3 + 1,
+                "is_weekend": int(pred_date.weekday() in [5, 6]),
+                "lag_7": lag_7,
+                "lag_30": lag_30,
+                "rolling_mean_7": lag_7,
+                "rolling_mean_30": lag_30,
+                "rolling_std_7": rolling_std_7 if np.isfinite(rolling_std_7) else 0,
+                "region": region,
+                "product_category": product,
+            }
+        ]
+    )
+    return float(model.predict(feature_row)[0]), feature_row
 
 
 def build_model(df):
@@ -639,7 +794,7 @@ def tamil_nadu_live_prediction(df=None, now=None):
     simulated_now = datetime(2026, 5, min(now.day, 31), now.hour, now.minute, now.second)
     source_df = df.copy() if df is not None and len(df) else demo_tamil_nadu_rows()
 
-    tn_pattern = "|".join(TAMIL_NADU_CITIES + ["Tamil Nadu", "TN"])
+    tn_pattern = "|".join(TAMIL_NADU_CITIES + ["Trichy", "Tamil Nadu", "TN"])
     tn_rows = source_df[source_df["region"].astype(str).str.contains(tn_pattern, case=False, na=False)]
     market_df = tn_rows if len(tn_rows) else source_df
     source_label = "Uploaded Tamil Nadu rows" if len(tn_rows) else "Uploaded dataset trend" if df is not None and len(df) else "Demo Tamil Nadu e-commerce baseline"
@@ -681,7 +836,14 @@ def tamil_nadu_live_prediction(df=None, now=None):
     city_total = sum(TN_CITY_MULTIPLIERS.values())
     city_sales = pd.DataFrame(
         [
-            {"city": city, "predicted_sales": monthly_prediction * TN_CITY_MULTIPLIERS[city] / city_total}
+            {
+                "city": city,
+                "predicted_sales": monthly_prediction * TN_CITY_MULTIPLIERS[city] / city_total,
+                "lat": TN_CITY_COORDS.get(city, (11.1271, 78.6569))[0],
+                "lon": TN_CITY_COORDS.get(city, (11.1271, 78.6569))[1],
+                "share_pct": TN_CITY_MULTIPLIERS[city] / city_total * 100,
+                "second_velocity": second_prediction * TN_CITY_MULTIPLIERS[city] / city_total,
+            }
             for city in TAMIL_NADU_CITIES
         ]
     ).sort_values("predicted_sales", ascending=False)
@@ -785,7 +947,7 @@ def business_summary(df, kpis, sentiment_pct, issues, anomalies, india_forecast,
         f"Protect momentum in {kpis['best_region']} by repeating the campaigns, inventory planning, and service practices working there.",
         f"Investigate {weak_region} before increasing spend; review discounts, delivery experience, and local product mix.",
         f"Fix {top_issue.lower()} first because repeated review themes usually explain hidden sales friction.",
-        f"Use {tn_forecast['city_sales'].iloc[0]['city']} as the Tamil Nadu growth benchmark and compare weaker cities against its product mix.",
+        f"Use {tn_forecast['city_sales'].iloc[0]['city']} as the Tamil Nadu district benchmark and compare weaker markets against its product mix.",
         "Compare discount percentage against revenue lift so promotions grow demand without eroding margin.",
         "Review anomaly alerts weekly and assign an owner for every sharp revenue drop.",
     ]
@@ -849,7 +1011,7 @@ Region breakdown:
 Product category breakdown:
 {compact_table(category_breakdown, 12)}
 
-Tamil Nadu city-wise predicted sales:
+Tamil Nadu district-wise predicted sales:
 {tn_city_text}
 
 Tamil Nadu category-wise predicted sales:
@@ -886,10 +1048,10 @@ def local_chatbot_answer(question, df, kpis, sentiment_pct, issues, anomalies, i
             f"and this second at {inr(tn_forecast['second_prediction'])}. {tn_forecast['disclaimer']}"
         )
     if any(phrase in lower for phrase in ["tamil nadu", "tamilnadu", "tn sales", "may 2026", "this month", "current month"]):
-        if "city" in lower or "highest" in lower:
+        if "city" in lower or "district" in lower or "highest" in lower:
             return (
                 f"{top_tn_city['city']} has the highest Tamil Nadu predicted sales at {inr(top_tn_city['predicted_sales'])}. "
-                f"The top three cities are "
+                f"The top three districts/markets are "
                 f"{', '.join([f'{row.city} ({inr(row.predicted_sales)})' for row in tn_forecast['city_sales'].head(3).itertuples()])}."
             )
         return (
@@ -898,7 +1060,7 @@ def local_chatbot_answer(question, df, kpis, sentiment_pct, issues, anomalies, i
             f"and confidence score is {tn_forecast['confidence_score']}%. {tn_forecast['insight']}"
         )
     if "download" in lower or "pdf" in lower:
-        return "Go to the Reports tab and click Download PDF report. It includes dataset summary, predictions, Tamil Nadu live forecast, city/category sales, recommendations, anomalies, and the predictive-estimate disclaimer."
+        return "Go to the Reports page and click Download PDF report. It includes dataset summary, predictions, Tamil Nadu live forecast, district/category sales, recommendations, anomalies, and the predictive-estimate disclaimer."
     if any(word in lower for word in ["highest", "best", "top region", "region has"]):
         return f"{region_sales.index[0]} has the highest sales with {inr(region_sales.iloc[0])}. The weakest region is {weak_region} with {inr(region_sales.iloc[-1])}."
     if any(word in lower for word in ["product", "category", "item"]):
@@ -1012,7 +1174,7 @@ def pdf_report(summary, recommendations, kpis, metrics, india_forecast, live_for
             f"Growth for May 2026: {tn_forecast['growth_rate']:.1f}%\n"
             f"Confidence score: {tn_forecast['confidence_score']}%\n"
             f"Insight: {tn_forecast['insight']}\n"
-            f"City-wise predicted sales:\n{city_lines}\n"
+            f"District-wise predicted sales:\n{city_lines}\n"
             f"Category-wise predicted sales:\n{category_lines}\n"
             f"Disclaimer: {tn_forecast['disclaimer']}"
         ),
@@ -1070,10 +1232,11 @@ def render_tamil_nadu_live_dashboard(df):
     st.session_state["tn_live_points"] = st.session_state["tn_live_points"][-45:]
 
     st.markdown("### Live Tamil Nadu E-Commerce Sales Prediction - 2026")
+    st.caption("Statewide prediction coverage across major Tamil Nadu districts and commerce markets.")
     st.warning(forecast["disclaimer"])
     top_line = st.columns([1.4, 1, 1])
     with top_line[0]:
-        metric_card("Live Simulated May 2026 Counter", inr(forecast["month_counter"]), f"Updates every second at {forecast['timestamp']}")
+        metric_card("Live Statewide Counter", inr(forecast["month_counter"]), f"Updates every second at {forecast['timestamp']}")
     with top_line[1]:
         metric_card("May 2026 Growth", f"{forecast['growth_rate']:.1f}%", forecast["source"])
     with top_line[2]:
@@ -1097,11 +1260,31 @@ def render_tamil_nadu_live_dashboard(df):
         px.line(chart_df, x="time", y=["live_counter", "second_estimate"], title="Live Tamil Nadu Forecast Updating Every Second"),
         width="stretch",
     )
+    map_fig = px.scatter_map(
+        forecast["city_sales"],
+        lat="lat",
+        lon="lon",
+        size="predicted_sales",
+        color="predicted_sales",
+        hover_name="city",
+        hover_data={"predicted_sales": ":,.0f", "share_pct": ":.2f", "second_velocity": ":,.2f", "lat": False, "lon": False},
+        color_continuous_scale="YlOrRd",
+        zoom=5.4,
+        center={"lat": 11.1271, "lon": 78.6569},
+        map_style="open-street-map",
+        height=520,
+        title="Live Sales Heatmap Across Tamil Nadu",
+    )
+    map_fig.update_layout(margin=dict(l=8, r=8, t=48, b=8))
+    st.plotly_chart(map_fig, width="stretch")
+
     city_col, category_col = st.columns(2)
     with city_col:
-        st.plotly_chart(px.bar(forecast["city_sales"], x="city", y="predicted_sales", title="Tamil Nadu City-wise Predicted Sales"), width="stretch")
+        st.plotly_chart(px.bar(forecast["city_sales"].head(18), x="city", y="predicted_sales", title="Tamil Nadu District-wise Predicted Sales"), width="stretch")
     with category_col:
         st.plotly_chart(px.bar(forecast["category_sales"], x="category", y="predicted_sales", title="Category-wise Predicted Sales"), width="stretch")
+    with st.expander("All Tamil Nadu live district predictions"):
+        st.dataframe(forecast["city_sales"], width="stretch")
 
 
 st.markdown(
@@ -1138,6 +1321,13 @@ with st.sidebar:
     st.success(f"{provider_name}: {provider_state}" if provider_state == "Connected" else "Local fallback active")
     st.caption("Keys are read only from Streamlit secrets or server environment variables, never from visible frontend inputs.")
     st.code("GROQ_API_KEY = \"your_key\"\nGROQ_MODEL = \"llama-3.3-70b-versatile\"\nGEMINI_API_KEY = \"your_key\"", language="toml")
+    st.divider()
+    requested_page = st.query_params.get("page", "Command Center")
+    if isinstance(requested_page, list):
+        requested_page = requested_page[0]
+    if requested_page not in PAGES:
+        requested_page = "Command Center"
+    current_page = st.radio("Platform pages", PAGES, index=PAGES.index(requested_page), key="platform_page")
 
 
 try:
@@ -1198,12 +1388,34 @@ kpis = {
 summary, recommendations = business_summary(clean_df, kpis, sentiment_pct, issues, anomalies, india_forecast, tn_forecast)
 ai_context_text = build_ai_context(clean_df, kpis, sentiment_pct, keywords, issues, anomalies, india_forecast, live_forecast, tn_forecast, recommendations, metrics)
 
-tab_dashboard, tab_prediction, tab_chatbot, tab_report = st.tabs(["Dashboard", "Prediction", "AI Chatbot", "Reports"])
+default_pred_date = date(2026, 5, 5)
+default_region = sorted(clean_df["region"].unique())[0]
+default_product = sorted(clean_df["product_category"].unique())[0]
+default_units = float(clean_df["units_sold"].median())
+default_discount = float(clean_df["discount_pct"].median())
+default_predicted_revenue, _default_feature_row = predict_revenue_scenario(
+    model,
+    clean_df,
+    default_pred_date,
+    default_region,
+    default_product,
+    default_units,
+    default_discount,
+)
+default_prediction_result = {
+    "date": default_pred_date,
+    "region": default_region,
+    "product_category": default_product,
+    "units_sold": default_units,
+    "discount_pct": default_discount,
+    "predicted_revenue": default_predicted_revenue,
+}
 
-with tab_dashboard:
-    st.subheader("Live Dashboard")
-    render_tamil_nadu_live_dashboard(clean_df)
-    st.divider()
+st.markdown('<a class="floating-chat-button" href="?page=AI%20Chatbot" target="_self">AI Chatbot</a>', unsafe_allow_html=True)
+
+if current_page == "Command Center":
+    st.subheader("Executive Command Center")
+    st.caption("A focused overview of dataset performance, model intelligence, live forecasts, and business risk signals.")
 
     cols = st.columns(4)
     with cols[0]:
@@ -1280,7 +1492,10 @@ with tab_dashboard:
     else:
         st.success("No major anomaly detected.")
 
-with tab_prediction:
+elif current_page == "Live Tamil Nadu":
+    render_tamil_nadu_live_dashboard(clean_df)
+
+elif current_page == "Prediction Studio":
     st.subheader("Manual Revenue Prediction")
     st.caption("Select a scenario and the trained Streamlit model will predict revenue.")
     c1, c2, c3 = st.columns(3)
@@ -1293,31 +1508,15 @@ with tab_prediction:
     with c3:
         discount = st.slider("Discount %", 0.0, 90.0, float(clean_df["discount_pct"].median()))
 
-    lag_7 = clean_df["revenue"].tail(7).mean()
-    lag_30 = clean_df["revenue"].tail(30).mean()
-    rolling_std_7 = clean_df["revenue"].tail(7).std() if len(clean_df) > 1 else 0
-    feature_row = pd.DataFrame(
-        [
-            {
-                "units_sold": units,
-                "discount_pct": discount,
-                "month": pred_date.month,
-                "year": pred_date.year,
-                "day_of_week": pred_date.weekday(),
-                "day_of_month": pred_date.day,
-                "quarter": (pred_date.month - 1) // 3 + 1,
-                "is_weekend": int(pred_date.weekday() in [5, 6]),
-                "lag_7": lag_7,
-                "lag_30": lag_30,
-                "rolling_mean_7": lag_7,
-                "rolling_mean_30": lag_30,
-                "rolling_std_7": rolling_std_7 if np.isfinite(rolling_std_7) else 0,
-                "region": region,
-                "product_category": product,
-            }
-        ]
-    )
-    predicted_revenue = float(model.predict(feature_row)[0])
+    predicted_revenue, feature_row = predict_revenue_scenario(model, clean_df, pred_date, region, product, units, discount)
+    st.session_state["latest_prediction"] = {
+        "date": pred_date,
+        "region": region,
+        "product_category": product,
+        "units_sold": units,
+        "discount_pct": discount,
+        "predicted_revenue": predicted_revenue,
+    }
     st.metric("Predicted Revenue", inr(predicted_revenue))
 
     st.markdown("### Model Leaderboard")
@@ -1325,7 +1524,27 @@ with tab_prediction:
     st.dataframe(leaderboard[["Model", "RMSE", "MAE", "R2", "WAPE", "Accuracy"]], width="stretch")
     st.plotly_chart(px.line(validation, x="date", y=["actual", "predicted"], title="Actual vs Predicted Validation"), width="stretch")
 
-with tab_chatbot:
+elif current_page == "Dataset Studio":
+    st.subheader("Dataset Studio")
+    st.caption("Inspect uploaded data, mapped fields, cleaned model-ready features, and exportable dataset assets.")
+    studio_cols = st.columns(4)
+    with studio_cols[0]:
+        metric_card("Raw Rows", f"{len(raw_df):,}", dataset_name)
+    with studio_cols[1]:
+        metric_card("Clean Rows", f"{len(clean_df):,}", "After dedupe and preprocessing")
+    with studio_cols[2]:
+        metric_card("Columns", f"{len(raw_df.columns):,}", "Uploaded schema")
+    with studio_cols[3]:
+        metric_card("Mapped Fields", f"{sum(bool(value) for value in column_mapping.values())}", "Detected or selected")
+    st.markdown("### Column Mapping")
+    st.dataframe(pd.DataFrame([{"field": key, "mapped_column": value or "Fallback"} for key, value in column_mapping.items()]), width="stretch")
+    st.markdown("### Raw Dataset Preview")
+    st.dataframe(raw_df.head(100), width="stretch")
+    st.markdown("### Cleaned Feature Preview")
+    st.dataframe(clean_df.head(100), width="stretch")
+    st.download_button("Download cleaned dataset CSV", clean_df.to_csv(index=False).encode("utf-8"), "cleaned_sales_data.csv", "text/csv")
+
+elif current_page == "AI Chatbot":
     st.subheader("AI Chatbot")
     provider_name, provider_state = ai_provider_status()
     st.caption(f"Provider: {provider_name}. If the provider is unavailable, the local insight engine answers from the uploaded data.")
@@ -1336,7 +1555,7 @@ with tab_chatbot:
 
     quick_questions = [
         "What are live sales now?",
-        "Which Tamil Nadu city has highest sales?",
+        "Which Tamil Nadu district has highest sales?",
         "What is the sales prediction for this month?",
         "Summarize May 2026 Tamil Nadu sales",
         "Download the report",
@@ -1384,7 +1603,7 @@ with tab_chatbot:
     with st.expander("What the chatbot knows about this dataset"):
         st.code(ai_context_text[:6000], language="text")
 
-with tab_report:
+elif current_page == "Reports":
     st.subheader("Business Report Summary")
     st.write(summary)
     st.markdown("### Tamil Nadu Live Prediction Summary")
@@ -1393,7 +1612,7 @@ with tab_report:
     with tn_report_cols[0]:
         metric_card("May 2026 Forecast", inr(tn_forecast["monthly_prediction"]), f"Growth: {tn_forecast['growth_rate']:.1f}%")
     with tn_report_cols[1]:
-        metric_card("Top Tamil Nadu City", tn_forecast["city_sales"].iloc[0]["city"], inr(tn_forecast["city_sales"].iloc[0]["predicted_sales"]))
+        metric_card("Top Tamil Nadu District", tn_forecast["city_sales"].iloc[0]["city"], inr(tn_forecast["city_sales"].iloc[0]["predicted_sales"]))
     with tn_report_cols[2]:
         metric_card("Top Category", tn_forecast["category_sales"].iloc[0]["category"], inr(tn_forecast["category_sales"].iloc[0]["predicted_sales"]))
     st.warning(tn_forecast["disclaimer"])
@@ -1411,15 +1630,16 @@ with tab_report:
     cleaned_csv = clean_df.to_csv(index=False).encode("utf-8")
     st.download_button("Download cleaned dataset CSV", cleaned_csv, "cleaned_sales_data.csv", "text/csv")
 
+    prediction_for_report = st.session_state.get("latest_prediction", default_prediction_result)
     prediction_output = pd.DataFrame(
         [
             {
-                "date": pred_date,
-                "region": region,
-                "product_category": product,
-                "units_sold": units,
-                "discount_pct": discount,
-                "predicted_revenue": predicted_revenue,
+                "date": prediction_for_report["date"],
+                "region": prediction_for_report["region"],
+                "product_category": prediction_for_report["product_category"],
+                "units_sold": prediction_for_report["units_sold"],
+                "discount_pct": prediction_for_report["discount_pct"],
+                "predicted_revenue": prediction_for_report["predicted_revenue"],
             }
         ]
     ).to_csv(index=False).encode("utf-8")

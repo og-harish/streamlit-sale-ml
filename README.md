@@ -10,10 +10,12 @@ A Streamlit Community Cloud-ready sales analytics app for flexible CSV upload, p
 - Work with partial data by filling missing region/category/review values and calculating revenue from `quantity x price` when possible
 - Clean missing values, remove duplicates, parse dates, and create time-series features
 - Train a server-side predictive model leaderboard and automatically select the strongest validation model
+- Separate Streamlit pages for Command Center, Live Tamil Nadu, Prediction Studio, Dataset Studio, AI Chatbot, and Reports
+- Floating bottom-right chatbot launcher for fast access from any page
 - Show KPI cards, revenue trend, region sales, category performance, forecast charts, and anomaly alerts
 - Show **Live Tamil Nadu E-Commerce Sales Prediction - 2026** with every-second simulated counter
 - Predict May 2026 Tamil Nadu monthly, daily, hourly, minute, and second-level estimated sales
-- Show Tamil Nadu city-wise and category-wise predicted sales for Chennai, Coimbatore, Madurai, Trichy, Salem, Tirunelveli, Erode, Vellore, and Thanjavur
+- Show statewide Tamil Nadu district/market predicted sales with live heatmap coverage across major commerce regions
 - Predict 2026 India sales with today estimate, YTD actuals, remaining-year forecast, and full-year projection
 - Live sales prediction cards for today, tomorrow, next 7 days, and next 30 days
 - Analyze review sentiment, keywords, and recurring issues
@@ -76,9 +78,10 @@ If no API key is configured, the chatbot still works with local dataset-aware an
 - Futuristic drag-and-drop uploader with multi-format dataset parsing
 - Multi-model prediction leaderboard using RandomForest, ExtraTrees, and GradientBoosting with time-aware validation
 - Expanded feature engineering with lag, rolling, volatility, calendar, weekend, city, and product signals
+- Dedicated statewide Tamil Nadu live prediction page with district heatmap, live counter, and every-second velocity estimates
 - Live forecast chart and executive insight text for portfolio-ready dashboard storytelling
 - PDF report now includes live sales prediction values
-- PDF report includes Tamil Nadu May 2026 live prediction, city/category forecasts, confidence score, and predictive-estimate disclaimer
+- PDF report includes Tamil Nadu May 2026 live prediction, district/category forecasts, confidence score, and predictive-estimate disclaimer
 - Flexible dataset engine supports different sales CSV schemas instead of forcing one exact column format
 
 ## Notes
