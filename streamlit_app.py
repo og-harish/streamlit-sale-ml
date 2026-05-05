@@ -88,6 +88,11 @@ def inr(value):
 
 
 def get_secret(name):
+    session_key = f"runtime_{name.lower()}"
+    session_value = st.session_state.get(session_key)
+    if session_value:
+        return str(session_value).strip()
+
     try:
         value = st.secrets.get(name)
         if value:
@@ -95,6 +100,14 @@ def get_secret(name):
     except Exception:
         pass
     return os.getenv(name)
+
+
+def ai_provider_status():
+    if get_secret("GROQ_API_KEY"):
+        return "Groq", "Connected"
+    if get_secret("GEMINI_API_KEY"):
+        return "Gemini", "Connected"
+    return "Local insight engine", "No API key configured"
 
 
 @st.cache_data
@@ -228,6 +241,67 @@ def forecast_daily_sales(df, periods=30):
     forecast_chart = pd.DataFrame(forecast_rows)
     forecast_chart["revenue"] = np.nan
     return pd.concat([actual_chart, forecast_chart], ignore_index=True)
+
+
+def live_sales_prediction(df):
+    daily = daily_revenue(df).sort_values("date")
+    values = daily["revenue"].to_numpy(dtype=float)
+    if len(values) == 0:
+        return {}
+
+    avg7 = np.mean(values[-7:]) if len(values) >= 7 else np.mean(values)
+    avg14 = np.mean(values[-14:]) if len(values) >= 14 else avg7
+    avg30 = np.mean(values[-30:]) if len(values) >= 30 else avg14
+    moving_avg = avg7 * 0.6 + avg14 * 0.25 + avg30 * 0.15
+    recent = values[-30:] if len(values) >= 2 else values
+    slope = np.polyfit(np.arange(len(recent)), recent, 1)[0] if len(recent) > 1 else 0
+    trend_pct = float(np.clip(slope / max(moving_avg, 1), -0.05, 0.05))
+    volatility = float(np.std(recent) / max(avg30, 1))
+    confidence = "High" if len(values) >= 60 and volatility < 0.25 else "Medium" if len(values) >= 20 and volatility < 0.55 else "Low"
+    direction = "increase" if trend_pct >= 0 else "decrease"
+    weekly_growth = trend_pct * 7 * 100
+    global_avg = np.mean(values)
+
+    weekday_factor = {}
+    for weekday in range(7):
+        weekday_values = daily[daily["date"].dt.dayofweek == weekday]["revenue"]
+        weekday_factor[weekday] = float(np.clip(weekday_values.mean() / global_avg, 0.8, 1.25)) if len(weekday_values) else 1
+
+    last_date = daily["date"].max()
+    rows = []
+    for day in range(0, 31):
+        forecast_date = last_date + timedelta(days=day)
+        factor = weekday_factor.get(forecast_date.dayofweek, 1)
+        trend_factor = float(np.clip(1 + trend_pct * max(day, 1), 0.65, 1.55))
+        rows.append(
+            {
+                "date": forecast_date,
+                "forecast": max(0, moving_avg * factor * trend_factor),
+                "period": "Estimate" if day == 0 else "Forecast",
+            }
+        )
+
+    forecast_df = pd.DataFrame(rows)
+    recent_actuals = daily.tail(30).copy()
+    recent_actuals["forecast"] = np.nan
+    forecast_df["revenue"] = np.nan
+    chart_df = pd.concat([recent_actuals, forecast_df], ignore_index=True)
+    today_estimate = float(forecast_df.iloc[0]["forecast"])
+    tomorrow_forecast = float(forecast_df.iloc[1]["forecast"]) if len(forecast_df) > 1 else today_estimate
+    next_7 = float(forecast_df.iloc[1:8]["forecast"].sum())
+    next_30 = float(forecast_df.iloc[1:31]["forecast"].sum())
+
+    return {
+        "today_estimate": today_estimate,
+        "tomorrow_forecast": tomorrow_forecast,
+        "next_7": next_7,
+        "next_30": next_30,
+        "confidence": confidence,
+        "direction": direction,
+        "weekly_growth": weekly_growth,
+        "insight": f"Sales are expected to {direction} by {abs(weekly_growth):.1f}% next week based on recent trend, moving average, and weekday seasonality.",
+        "chart": chart_df,
+    }
 
 
 def india_2026_forecast(df):
@@ -371,10 +445,123 @@ def business_summary(df, kpis, sentiment_pct, issues, anomalies, india_forecast)
     return summary, recommendations
 
 
-def ask_ai(question, context):
+def compact_table(df, max_rows=10):
+    if df is None or len(df) == 0:
+        return "None"
+    return df.head(max_rows).to_csv(index=False).strip()
+
+
+def build_ai_context(df, kpis, sentiment_pct, keywords, issues, anomalies, india_forecast, live_forecast, recommendations, metrics):
+    daily = daily_revenue(df).sort_values("date")
+    recent_daily = daily.tail(12)
+    region_breakdown = (
+        df.groupby("region", as_index=False)
+        .agg(revenue=("revenue", "sum"), units_sold=("units_sold", "sum"), avg_discount=("discount_pct", "mean"))
+        .sort_values("revenue", ascending=False)
+    )
+    category_breakdown = (
+        df.groupby("product_category", as_index=False)
+        .agg(revenue=("revenue", "sum"), units_sold=("units_sold", "sum"), avg_discount=("discount_pct", "mean"))
+        .sort_values("revenue", ascending=False)
+    )
+    monthly = (
+        df.assign(month=df["date"].dt.to_period("M").astype(str))
+        .groupby("month", as_index=False)
+        .agg(revenue=("revenue", "sum"), units_sold=("units_sold", "sum"))
+        .tail(12)
+    )
+    discount_corr = df["discount_pct"].corr(df["revenue"]) if df["discount_pct"].nunique() > 1 and df["revenue"].nunique() > 1 else 0
+    top_keywords = ", ".join([f"{word} ({count})" for word, count in keywords]) or "None"
+    issue_text = ", ".join([f"{issue}: {count}" for issue, count in issues if count > 0]) or "No repeated issues"
+    anomaly_text = compact_table(anomalies[["date", "revenue", "pct_change", "type"]], 8) if len(anomalies) else "No major anomalies detected"
+
+    return f"""
+Dataset period: {df['date'].min().date()} to {df['date'].max().date()}
+Rows after cleaning: {len(df):,}
+Total revenue: {inr(kpis['total_revenue'])}
+Total units sold: {kpis['total_units']:,.0f}
+Best region: {kpis['best_region']} ({inr(kpis['best_region_revenue'])})
+Best product category: {kpis['best_category']}
+Model performance: RMSE {metrics['RMSE']:.2f}, MAE {metrics['MAE']:.2f}, R2 {metrics['R2']:.3f}
+Live sales forecast: Today {inr(live_forecast['today_estimate'])}, Tomorrow {inr(live_forecast['tomorrow_forecast'])}, Next 7 days {inr(live_forecast['next_7'])}, Next 30 days {inr(live_forecast['next_30'])}, confidence {live_forecast['confidence']}, direction {live_forecast['direction']}, weekly growth {live_forecast['weekly_growth']:.1f}%.
+India 2026 forecast: As of {india_forecast['as_of']}, full-year projection {inr(india_forecast['full_year'])}, remaining forecast {inr(india_forecast['remaining_forecast'])}, confidence {india_forecast['confidence']}.
+Customer sentiment: positive {sentiment_pct['positive']}%, neutral {sentiment_pct['neutral']}%, negative {sentiment_pct['negative']}%.
+Top review keywords: {top_keywords}
+Detected customer issues: {issue_text}
+Discount-to-revenue correlation: {discount_corr:.3f}
+Anomalies:
+{anomaly_text}
+
+Region breakdown:
+{compact_table(region_breakdown, 12)}
+
+Product category breakdown:
+{compact_table(category_breakdown, 12)}
+
+Recent daily sales:
+{compact_table(recent_daily, 12)}
+
+Recent monthly sales:
+{compact_table(monthly, 12)}
+
+Current recommendations:
+{" | ".join(recommendations)}
+""".strip()
+
+
+def local_chatbot_answer(question, df, kpis, sentiment_pct, issues, anomalies, india_forecast, live_forecast, recommendations, metrics):
+    lower = question.lower()
+    region_sales = df.groupby("region")["revenue"].sum().sort_values(ascending=False)
+    category_sales = df.groupby("product_category")["revenue"].sum().sort_values(ascending=False)
+    daily = daily_revenue(df).sort_values("date")
+    weak_region = region_sales.idxmin()
+    weak_category = category_sales.idxmin()
+    latest_revenue = float(daily.iloc[-1]["revenue"])
+    previous_revenue = float(daily.iloc[-2]["revenue"]) if len(daily) > 1 else latest_revenue
+    latest_change = ((latest_revenue - previous_revenue) / max(previous_revenue, 1)) * 100
+    top_issue = next((issue for issue, count in issues if count > 0), "no repeated customer issue")
+
+    if any(word in lower for word in ["highest", "best", "top region", "region has"]):
+        return f"{region_sales.index[0]} has the highest sales with {inr(region_sales.iloc[0])}. The weakest region is {weak_region} with {inr(region_sales.iloc[-1])}."
+    if any(word in lower for word in ["product", "category", "item"]):
+        return f"{category_sales.index[0]} is the top category with {inr(category_sales.iloc[0])}. {weak_category} is the weakest category with {inr(category_sales.iloc[-1])}."
+    if any(word in lower for word in ["drop", "decrease", "down", "why"]):
+        if len(anomalies):
+            latest_anomaly = anomalies.iloc[0]
+            return f"The clearest drop/spike signal is {latest_anomaly['type']} on {latest_anomaly['date'].date()} at {inr(latest_anomaly['revenue'])}. Check {weak_region}, {weak_category}, discount changes, and review issue '{top_issue}' first."
+        return f"No major anomaly is currently flagged. The latest day changed by {latest_change:.1f}% versus the previous day; monitor {weak_region}, {weak_category}, and review issue '{top_issue}'."
+    if any(word in lower for word in ["sentiment", "review", "customer", "complaint", "issue"]):
+        return f"Customer sentiment is {sentiment_pct['positive']}% positive, {sentiment_pct['neutral']}% neutral, and {sentiment_pct['negative']}% negative. The most important repeated issue is {top_issue}."
+    if any(word in lower for word in ["forecast", "predict", "prediction", "tomorrow", "next 7", "next 30", "future"]):
+        return f"Today is estimated at {inr(live_forecast['today_estimate'])}, tomorrow at {inr(live_forecast['tomorrow_forecast'])}, next 7 days at {inr(live_forecast['next_7'])}, and next 30 days at {inr(live_forecast['next_30'])}. Confidence is {live_forecast['confidence']} and the trend points to a {live_forecast['direction']}."
+    if any(word in lower for word in ["india", "2026"]):
+        return f"India 2026 full-year sales are projected at {inr(india_forecast['full_year'])}, with {inr(india_forecast['remaining_forecast'])} remaining forecast and {india_forecast['confidence']} confidence."
+    if any(word in lower for word in ["model", "accuracy", "rmse", "mae", "r2"]):
+        return f"The RandomForest model reports RMSE {metrics['RMSE']:.2f}, MAE {metrics['MAE']:.2f}, and R2 {metrics['R2']:.3f}. Use this as a directional business estimate, not a guaranteed financial forecast."
+    if any(word in lower for word in ["recommend", "improve", "action", "strategy"]):
+        return " ".join(recommendations)
+    if any(word in lower for word in ["summary", "report", "overall"]):
+        return f"Total revenue is {inr(kpis['total_revenue'])} from {kpis['total_units']:,.0f} units. {kpis['best_region']} and {kpis['best_category']} lead performance. Live forecast confidence is {live_forecast['confidence']}."
+
+    return f"I can answer from the uploaded dataset. Key snapshot: revenue {inr(kpis['total_revenue'])}, best region {kpis['best_region']}, best category {kpis['best_category']}, forecast direction {live_forecast['direction']}, and top issue {top_issue}."
+
+
+def ask_ai(question, context_text):
     groq_key = get_secret("GROQ_API_KEY")
     gemini_key = get_secret("GEMINI_API_KEY")
-    prompt = f"You are a practical business analyst. Answer from this sales context only.\n\nContext:\n{context}\n\nQuestion:\n{question}"
+    prompt = f"""
+You are a practical senior business analyst inside a sales prediction dashboard.
+Answer the user's question using only the dataset context below.
+Be specific, numeric when possible, and business-friendly.
+If the question asks for a cause, explain the most likely drivers from region/category trends, anomalies, discounts, and reviews.
+If the context is insufficient, say what is missing and give the best available answer.
+
+Dataset context:
+{context_text}
+
+User question:
+{question}
+""".strip()
 
     if groq_key:
         response = requests.post(
@@ -383,11 +570,11 @@ def ask_ai(question, context):
             json={
                 "model": get_secret("GROQ_MODEL") or "llama-3.3-70b-versatile",
                 "messages": [
-                    {"role": "system", "content": "Answer concisely using only the provided dataset context."},
+                    {"role": "system", "content": "You answer sales analytics questions from the provided dashboard context. Never invent rows or secret keys."},
                     {"role": "user", "content": prompt},
                 ],
-                "temperature": 0.25,
-                "max_tokens": 500,
+                "temperature": 0.35,
+                "max_tokens": 750,
             },
             timeout=30,
         )
@@ -403,17 +590,10 @@ def ask_ai(question, context):
         response.raise_for_status()
         return response.json()["candidates"][0]["content"]["parts"][0]["text"].strip(), "Gemini"
 
-    lower = question.lower()
-    if "india" in lower or "2026" in lower:
-        return f"India 2026 sales are projected at {context['india_full_year']} with {context['india_confidence']} confidence.", "Local fallback"
-    if "highest" in lower or "best region" in lower:
-        return f"The highest-sales region is {context['best_region']} with revenue of {context['best_region_revenue']}.", "Local fallback"
-    if "recommend" in lower:
-        return "Focus on the best region, fix repeated customer issues, monitor anomalies, and validate discount ROI.", "Local fallback"
-    return context["summary"], "Local fallback"
+    raise RuntimeError("No AI API key configured")
 
 
-def pdf_report(summary, recommendations, kpis, india_forecast, anomalies):
+def pdf_report(summary, recommendations, kpis, india_forecast, live_forecast, anomalies):
     pdf = FPDF()
     pdf.add_page()
     text_width = 180
@@ -421,6 +601,11 @@ def pdf_report(summary, recommendations, kpis, india_forecast, anomalies):
     pdf.cell(text_width, 10, "Sales Prediction AI Report", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.set_font("Helvetica", size=10)
     pdf.multi_cell(text_width, 6, f"Total revenue: {inr(kpis['total_revenue'])}\nTotal units: {kpis['total_units']:,.0f}\nBest region: {kpis['best_region']}\nBest category: {kpis['best_category']}")
+    pdf.ln(2)
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(text_width, 8, "Live Sales Prediction", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_font("Helvetica", size=10)
+    pdf.multi_cell(text_width, 6, f"Today estimate: {inr(live_forecast['today_estimate'])}\nTomorrow forecast: {inr(live_forecast['tomorrow_forecast'])}\nNext 7 days: {inr(live_forecast['next_7'])}\nNext 30 days: {inr(live_forecast['next_30'])}\nConfidence: {live_forecast['confidence']}\nInsight: {live_forecast['insight']}")
     pdf.ln(2)
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(text_width, 8, "India 2026 Forecast", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
@@ -478,7 +663,16 @@ with st.sidebar:
     use_sample = st.button("Load sample dataset", width="stretch")
     st.caption("Required columns: date, region, product_category, units_sold, revenue, discount_pct, customer_reviews")
     st.divider()
-    st.caption("Secrets for Streamlit Cloud")
+    st.caption("AI chatbot configuration")
+    runtime_groq_key = st.text_input("Temporary Groq API key", type="password", help="Stored only in this Streamlit session. For production, use Streamlit Cloud secrets.")
+    runtime_gemini_key = st.text_input("Temporary Gemini API key", type="password", help="Optional fallback provider for this session only.")
+    if runtime_groq_key:
+        st.session_state["runtime_groq_api_key"] = runtime_groq_key.strip()
+    if runtime_gemini_key:
+        st.session_state["runtime_gemini_api_key"] = runtime_gemini_key.strip()
+    provider_name, provider_state = ai_provider_status()
+    st.success(f"{provider_name}: {provider_state}" if provider_state == "Connected" else "Local fallback active")
+    st.caption("Production secrets for Streamlit Cloud")
     st.code("GROQ_API_KEY = \"your_key\"\nGROQ_MODEL = \"llama-3.3-70b-versatile\"", language="toml")
 
 
@@ -491,6 +685,7 @@ except Exception as exc:
 
 model, metrics, validation = build_model(clean_df)
 forecast_chart = forecast_daily_sales(clean_df)
+live_forecast = live_sales_prediction(clean_df)
 india_forecast = india_2026_forecast(clean_df)
 sentiment_pct, keywords, issues = analyze_reviews(clean_df)
 anomalies = detect_anomalies(clean_df)
@@ -505,6 +700,7 @@ kpis = {
     "best_category": category_sales.iloc[0]["product_category"],
 }
 summary, recommendations = business_summary(clean_df, kpis, sentiment_pct, issues, anomalies, india_forecast)
+ai_context_text = build_ai_context(clean_df, kpis, sentiment_pct, keywords, issues, anomalies, india_forecast, live_forecast, recommendations, metrics)
 
 tab_dashboard, tab_prediction, tab_chatbot, tab_report = st.tabs(["Dashboard", "Prediction", "AI Chatbot", "Reports"])
 
@@ -519,6 +715,22 @@ with tab_dashboard:
         metric_card("Best Region", kpis["best_region"], inr(kpis["best_region_revenue"]))
     with cols[3]:
         metric_card("Best Category", kpis["best_category"], "Top product category")
+
+    st.markdown("### Live Sales Prediction")
+    live_cols = st.columns(4)
+    with live_cols[0]:
+        metric_card("Today's Estimated Sales", inr(live_forecast["today_estimate"]), f"Confidence: {live_forecast['confidence']}")
+    with live_cols[1]:
+        metric_card("Tomorrow's Prediction", inr(live_forecast["tomorrow_forecast"]), f"Trend: {live_forecast['direction']}")
+    with live_cols[2]:
+        metric_card("Next 7 Days Forecast", inr(live_forecast["next_7"]), f"{abs(live_forecast['weekly_growth']):.1f}% {live_forecast['direction']}")
+    with live_cols[3]:
+        metric_card("Next 30 Days Forecast", inr(live_forecast["next_30"]), "Moving average + seasonality")
+    st.info(live_forecast["insight"])
+    st.plotly_chart(
+        px.line(live_forecast["chart"], x="date", y=["revenue", "forecast"], title="Live Actual vs Forecast Sales"),
+        width="stretch",
+    )
 
     st.markdown("### India 2026 Live Sales Forecast")
     india_cols = st.columns(4)
@@ -597,27 +809,45 @@ with tab_prediction:
 
 with tab_chatbot:
     st.subheader("AI Chatbot")
-    st.caption("Uses Groq or Gemini from Streamlit secrets. If no key is configured, local business rules answer.")
-    context = {
-        "summary": summary,
-        "best_region": kpis["best_region"],
-        "best_region_revenue": inr(kpis["best_region_revenue"]),
-        "india_full_year": inr(india_forecast["full_year"]),
-        "india_confidence": india_forecast["confidence"],
-    }
+    provider_name, provider_state = ai_provider_status()
+    st.caption(f"Provider: {provider_name}. If the provider is unavailable, the local insight engine answers from the uploaded data.")
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
+    if "last_quick_question" not in st.session_state:
+        st.session_state.last_quick_question = ""
 
-    quick_questions = ["Which region has highest sales?", "Predict 2026 India sales", "Why did sales drop?", "Give business recommendations"]
-    selected_question = st.selectbox("Try a quick question", [""] + quick_questions)
-    question = st.chat_input("Ask about the uploaded dataset")
-    question = question or selected_question
+    quick_questions = [
+        "Which region has highest sales?",
+        "Predict next 30 days sales",
+        "Why did sales drop?",
+        "Summarize customer complaints",
+        "Give business recommendations",
+        "How accurate is the model?",
+    ]
+    selected_question = st.selectbox("Try a quick question", [""] + quick_questions, key="quick_question_select")
+    typed_question = st.chat_input("Ask anything about the uploaded dataset")
+    question = typed_question
+    if selected_question and selected_question != st.session_state.last_quick_question:
+        question = selected_question
+        st.session_state.last_quick_question = selected_question
 
     if question:
+        local_answer = local_chatbot_answer(
+            question,
+            clean_df,
+            kpis,
+            sentiment_pct,
+            issues,
+            anomalies,
+            india_forecast,
+            live_forecast,
+            recommendations,
+            metrics,
+        )
         try:
-            answer, source = ask_ai(question, context)
+            answer, source = ask_ai(question, ai_context_text)
         except Exception as exc:
-            answer, source = f"AI provider failed: {exc}. Local summary: {summary}", "Local fallback"
+            answer, source = local_answer, f"Local insight engine ({exc})"
         st.session_state.chat_history.append(("user", question, ""))
         st.session_state.chat_history.append(("assistant", answer, source))
 
@@ -627,9 +857,14 @@ with tab_chatbot:
             if source:
                 st.caption(source)
 
+    with st.expander("What the chatbot knows about this dataset"):
+        st.code(ai_context_text[:6000], language="text")
+
 with tab_report:
     st.subheader("Business Report Summary")
     st.write(summary)
+    st.markdown("### Live Forecast Summary")
+    st.write(live_forecast["insight"])
     st.markdown("### Recommendations")
     for rec in recommendations:
         st.write(f"- {rec}")
@@ -656,5 +891,5 @@ with tab_report:
     ).to_csv(index=False).encode("utf-8")
     st.download_button("Download latest prediction CSV", prediction_output, "prediction_results.csv", "text/csv")
 
-    report_bytes = pdf_report(summary, recommendations, kpis, india_forecast, anomalies)
+    report_bytes = pdf_report(summary, recommendations, kpis, india_forecast, live_forecast, anomalies)
     st.download_button("Download PDF report", report_bytes, "sales_prediction_ai_report.pdf", "application/pdf")

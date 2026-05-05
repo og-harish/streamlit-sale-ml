@@ -10,8 +10,9 @@ A Streamlit Community Cloud-ready sales analytics app for CSV upload, preprocess
 - Train a browser/server-side Streamlit RandomForest revenue prediction model
 - Show KPI cards, revenue trend, region sales, category performance, forecast charts, and anomaly alerts
 - Predict 2026 India sales with today estimate, YTD actuals, remaining-year forecast, and full-year projection
+- Live sales prediction cards for today, tomorrow, next 7 days, and next 30 days
 - Analyze review sentiment, keywords, and recurring issues
-- Chatbot uses Groq or Gemini from Streamlit secrets, with local fallback answers
+- Chatbot uses Groq or Gemini from Streamlit secrets, with richer dataset-aware local fallback answers
 - Download cleaned CSV, prediction CSV, and PDF report
 
 ## Run Locally
@@ -48,7 +49,27 @@ GROQ_MODEL = "llama-3.3-70b-versatile"
 
 Do not commit real API keys. For local development, create `.streamlit/secrets.toml` from `.streamlit/secrets.toml.example`. For Streamlit Cloud, paste the same TOML values in the app's secrets settings.
 
-If no API key is configured, the chatbot still works with local rule-based answers.
+Recommended Streamlit Cloud secrets:
+
+```toml
+GROQ_API_KEY = "your_groq_key_here"
+GROQ_MODEL = "llama-3.3-70b-versatile"
+
+# Optional fallback provider
+GEMINI_API_KEY = "your_gemini_key_here"
+```
+
+For quick testing, the sidebar also supports temporary Groq/Gemini keys. Temporary keys stay in the current Streamlit session and are not written to GitHub.
+
+If no API key is configured, the chatbot still works with local dataset-aware answers for questions about best regions, weak categories, forecasts, anomalies, model metrics, customer complaints, and recommendations.
+
+## Next-Level Upgrades Included
+
+- Rich AI context builder so chatbot answers vary by question and use real uploaded dataset metrics
+- Quick-question handling that avoids repeating the same answer on every Streamlit rerun
+- AI provider fallback: if Groq/Gemini fails, the app returns local business analysis instead of breaking
+- Live forecast chart and executive insight text for portfolio-ready dashboard storytelling
+- PDF report now includes live sales prediction values
 
 ## Notes
 
