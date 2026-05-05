@@ -252,6 +252,23 @@ st.markdown(
         font-weight: 900;
         box-shadow: 0 10px 28px rgba(255, 180, 80, .26);
     }
+    [data-testid="stSidebar"] [role="radiogroup"] label,
+    [data-testid="stSidebar"] .stCaption,
+    [data-testid="stSidebar"] p,
+    [data-testid="stSidebar"] span {
+        color: #FFFFFF !important;
+        opacity: 1 !important;
+        font-weight: 760;
+    }
+    [data-testid="stSidebar"] [data-testid="stFileUploader"] * {
+        color: #071B17 !important;
+    }
+    [data-testid="stSidebar"] [data-testid="stFileUploader"] button {
+        background: #103B37 !important;
+        color: #FFFFFF !important;
+        border: 1px solid rgba(255, 255, 255, .6);
+        font-weight: 900;
+    }
     .hero {
         padding: 2.35rem;
         border-radius: 34px;
@@ -310,6 +327,11 @@ st.markdown(
         border: 2px dashed rgba(255, 180, 80, .72);
         background: rgba(255, 253, 247, .96);
         color: #0B1F1A;
+    }
+    .stFileUploader section * {
+        color: #071B17 !important;
+        opacity: 1 !important;
+        font-weight: 750;
     }
     div[data-testid="stAlert"] {
         border-radius: 18px;
@@ -1360,8 +1382,7 @@ with st.sidebar:
     st.markdown(
         """
         <div class="upload-dropzone">
-            <b>Drag and drop your sales dataset</b><br>
-            CSV, TSV, TXT, Excel, JSON, JSONL, or Parquet files are supported.
+            <b>Drag and drop your sales dataset</b>
         </div>
         """,
         unsafe_allow_html=True,
