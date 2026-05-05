@@ -1,6 +1,6 @@
 import io
 import os
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import numpy as np
 import pandas as pd
@@ -26,6 +26,66 @@ REQUIRED_COLUMNS = [
     "discount_pct",
     "customer_reviews",
 ]
+
+COLUMN_ALIASES = {
+    "date": ["date", "order_date", "sale_date", "created_at", "timestamp"],
+    "region": ["region", "state", "location", "city", "area"],
+    "product_category": ["product_category", "category", "product", "item", "product_type"],
+    "units_sold": ["units_sold", "quantity", "qty", "units", "sales_count"],
+    "revenue": ["revenue", "sales", "amount", "total_price", "price"],
+    "unit_price": ["unit_price", "selling_price", "price", "rate", "mrp"],
+    "discount_pct": ["discount_pct", "discount", "discount_percent", "offer"],
+    "customer_reviews": ["customer_reviews", "review", "feedback", "comment", "customer_text"],
+}
+
+CORE_FIELDS = ["date", "units_sold", "revenue"]
+OPTIONAL_FIELDS = ["region", "product_category", "discount_pct", "customer_reviews", "unit_price"]
+
+TAMIL_NADU_CITIES = [
+    "Chennai",
+    "Coimbatore",
+    "Madurai",
+    "Trichy",
+    "Salem",
+    "Tirunelveli",
+    "Erode",
+    "Vellore",
+    "Thanjavur",
+]
+
+TAMIL_NADU_CATEGORIES = [
+    "Electronics",
+    "Fashion",
+    "Grocery",
+    "Home Appliances",
+    "Beauty",
+    "Mobiles",
+    "Books",
+]
+
+TN_CITY_MULTIPLIERS = {
+    "Chennai": 1.38,
+    "Coimbatore": 1.14,
+    "Madurai": 0.98,
+    "Trichy": 0.88,
+    "Salem": 0.82,
+    "Tirunelveli": 0.72,
+    "Erode": 0.78,
+    "Vellore": 0.75,
+    "Thanjavur": 0.68,
+}
+
+TN_CATEGORY_MULTIPLIERS = {
+    "Electronics": 1.2,
+    "Fashion": 1.08,
+    "Grocery": 0.94,
+    "Home Appliances": 1.02,
+    "Beauty": 0.84,
+    "Mobiles": 1.28,
+    "Books": 0.64,
+}
+
+TN_DISCLAIMER = "This is a predictive simulation based on dataset trends, not official live government data."
 
 NUMERIC_FEATURES = [
     "units_sold",
@@ -115,28 +175,122 @@ def load_sample_data():
     return pd.read_csv("sample_data/sample_sales.csv")
 
 
-def validate_columns(df):
-    missing = [col for col in REQUIRED_COLUMNS if col not in df.columns]
-    return missing
+def normalize_column_name(name):
+    return str(name).strip().lower().replace(" ", "_").replace("-", "_")
 
 
-def preprocess_data(df):
-    missing = validate_columns(df)
-    if missing:
-        raise ValueError(f"Missing required columns: {', '.join(missing)}")
+def auto_detect_column_mapping(df):
+    normalized = {normalize_column_name(col): col for col in df.columns}
+    mapping = {}
+    for field, aliases in COLUMN_ALIASES.items():
+        match = next((normalized[normalize_column_name(alias)] for alias in aliases if normalize_column_name(alias) in normalized), None)
+        mapping[field] = match
+    return mapping
 
-    clean = df[REQUIRED_COLUMNS].copy()
-    clean = clean.drop_duplicates()
 
-    clean["date"] = pd.to_datetime(clean["date"], errors="coerce")
-    clean = clean.dropna(subset=["date"])
-    clean["region"] = clean["region"].fillna("Unknown").astype(str).str.strip()
-    clean["product_category"] = clean["product_category"].fillna("Unknown").astype(str).str.strip()
-    clean["customer_reviews"] = clean["customer_reviews"].fillna("").astype(str)
+def mapping_completeness(mapping):
+    has_revenue = bool(mapping.get("revenue"))
+    has_revenue_formula = bool(mapping.get("units_sold") and mapping.get("unit_price"))
+    warnings = []
+    if not mapping.get("date"):
+        warnings.append("No date column mapped; the app will create synthetic sequential dates.")
+    if not mapping.get("region"):
+        warnings.append("No region/city column mapped; the app will use 'Overall'.")
+    if not mapping.get("product_category"):
+        warnings.append("No product/category column mapped; the app will use 'General'.")
+    if not mapping.get("units_sold"):
+        warnings.append("No units/quantity column mapped; units will be estimated from available sales rows.")
+    if not has_revenue and not has_revenue_formula:
+        warnings.append("No revenue/sales amount or quantity x price mapping found; revenue will fall back to units/proxy values.")
+    return warnings
+
+
+def render_column_mapping(df, detected_mapping):
+    st.markdown("#### Flexible Column Mapping")
+    st.caption("Auto-detected columns are preselected. Change any dropdown if your dataset uses a different name.")
+    options = ["Not available"] + list(df.columns)
+    mapping = {}
+    fields = CORE_FIELDS + OPTIONAL_FIELDS
+    field_labels = {
+        "date": "Date / order date",
+        "units_sold": "Units / quantity",
+        "revenue": "Revenue / sales amount",
+        "region": "Region / city / state",
+        "product_category": "Product / category",
+        "discount_pct": "Discount %",
+        "customer_reviews": "Review / feedback",
+        "unit_price": "Unit price (used if revenue is missing)",
+    }
+    cols = st.columns(2)
+    for index, field in enumerate(fields):
+        default_col = detected_mapping.get(field)
+        default_index = options.index(default_col) if default_col in options else 0
+        with cols[index % 2]:
+            selected = st.selectbox(field_labels[field], options, index=default_index, key=f"map_{field}")
+            mapping[field] = None if selected == "Not available" else selected
+    return mapping
+
+
+def preprocess_data(df, mapping):
+    source = df.drop_duplicates().copy()
+    clean = pd.DataFrame(index=source.index)
+
+    if mapping.get("date"):
+        clean["date"] = pd.to_datetime(source[mapping["date"]], errors="coerce")
+        if clean["date"].notna().any():
+            first_valid = clean["date"].dropna().min()
+            clean["date"] = clean["date"].fillna(first_valid)
+        else:
+            clean["date"] = pd.date_range("2026-01-01", periods=len(clean), freq="D")
+    else:
+        clean["date"] = pd.date_range("2026-01-01", periods=len(clean), freq="D")
+
+    clean["region"] = (
+        source[mapping["region"]].fillna("Overall").astype(str).str.strip()
+        if mapping.get("region")
+        else "Overall"
+    )
+    clean["product_category"] = (
+        source[mapping["product_category"]].fillna("General").astype(str).str.strip()
+        if mapping.get("product_category")
+        else "General"
+    )
+    clean["customer_reviews"] = (
+        source[mapping["customer_reviews"]].fillna("").astype(str)
+        if mapping.get("customer_reviews")
+        else "No review text available"
+    )
+
+    if mapping.get("units_sold"):
+        clean["units_sold"] = pd.to_numeric(source[mapping["units_sold"]], errors="coerce")
+    else:
+        clean["units_sold"] = np.nan
+
+    if mapping.get("revenue"):
+        clean["revenue"] = pd.to_numeric(source[mapping["revenue"]], errors="coerce")
+    else:
+        clean["revenue"] = np.nan
+
+    if clean["revenue"].isna().all() and mapping.get("unit_price"):
+        unit_price = pd.to_numeric(source[mapping["unit_price"]], errors="coerce")
+        units_for_formula = clean["units_sold"].fillna(clean["units_sold"].median() if clean["units_sold"].notna().any() else 1)
+        clean["revenue"] = units_for_formula * unit_price
+
+    if clean["units_sold"].isna().all():
+        clean["units_sold"] = np.where(clean["revenue"].notna(), np.maximum(clean["revenue"] / 100, 1), 1)
+
+    if clean["revenue"].isna().all():
+        clean["revenue"] = np.maximum(clean["units_sold"], 1) * 100
+
+    if mapping.get("discount_pct"):
+        clean["discount_pct"] = pd.to_numeric(source[mapping["discount_pct"]], errors="coerce")
+    else:
+        clean["discount_pct"] = 0
 
     for col in ["units_sold", "revenue", "discount_pct"]:
         clean[col] = pd.to_numeric(clean[col], errors="coerce")
-        clean[col] = clean[col].fillna(clean[col].median() if clean[col].notna().any() else 0)
+        fallback = clean[col].median() if clean[col].notna().any() else 0
+        clean[col] = clean[col].fillna(fallback)
 
     clean = clean.sort_values("date")
     clean["month"] = clean["date"].dt.month
@@ -157,12 +311,6 @@ def build_model(df):
     features = NUMERIC_FEATURES + CATEGORICAL_FEATURES
     x = df[features]
     y = df["revenue"]
-
-    if len(df) < 8:
-        raise ValueError("Need at least 8 cleaned rows to train a prediction model.")
-
-    test_size = 0.2 if len(df) >= 20 else 0.3
-    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=test_size, shuffle=False)
 
     preprocessor = ColumnTransformer(
         transformers=[
@@ -185,8 +333,18 @@ def build_model(df):
             ),
         ]
     )
-    model.fit(x_train, y_train)
-    predictions = model.predict(x_test)
+
+    if len(df) < 4:
+        model.fit(x, y)
+        y_test = y
+        predictions = model.predict(x)
+        validation_dates = df["date"]
+    else:
+        test_size = 0.2 if len(df) >= 20 else 0.3
+        x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=test_size, shuffle=False)
+        model.fit(x_train, y_train)
+        predictions = model.predict(x_test)
+        validation_dates = df.loc[y_test.index, "date"]
 
     rmse = float(np.sqrt(mean_squared_error(y_test, predictions)))
     mae = float(mean_absolute_error(y_test, predictions))
@@ -194,7 +352,7 @@ def build_model(df):
 
     validation = pd.DataFrame(
         {
-            "date": df.loc[y_test.index, "date"],
+            "date": validation_dates,
             "actual": y_test.values,
             "predicted": predictions,
         }
@@ -372,6 +530,109 @@ def india_2026_forecast(df):
     }
 
 
+def demo_tamil_nadu_rows():
+    rows = []
+    for city_index, city in enumerate(TAMIL_NADU_CITIES):
+        for category_index, category in enumerate(TAMIL_NADU_CATEGORIES):
+            day = ((city_index + category_index) % 28) + 1
+            city_factor = TN_CITY_MULTIPLIERS.get(city, 1)
+            category_factor = TN_CATEGORY_MULTIPLIERS.get(category, 1)
+            rows.append(
+                {
+                    "date": pd.Timestamp(2026, 5, day),
+                    "region": city,
+                    "product_category": category,
+                    "units_sold": round(340 * city_factor * category_factor),
+                    "revenue": 420000 * city_factor * category_factor * (0.92 + ((city_index + category_index) % 5) * 0.04),
+                    "discount_pct": 8 + (category_index % 4) * 3,
+                    "customer_reviews": "Tamil Nadu e-commerce demo trend",
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def tamil_nadu_live_prediction(df=None, now=None):
+    now = now or datetime.now()
+    simulated_now = datetime(2026, 5, min(now.day, 31), now.hour, now.minute, now.second)
+    source_df = df.copy() if df is not None and len(df) else demo_tamil_nadu_rows()
+
+    tn_pattern = "|".join(TAMIL_NADU_CITIES + ["Tamil Nadu", "TN"])
+    tn_rows = source_df[source_df["region"].astype(str).str.contains(tn_pattern, case=False, na=False)]
+    market_df = tn_rows if len(tn_rows) else source_df
+    source_label = "Uploaded Tamil Nadu rows" if len(tn_rows) else "Uploaded dataset trend" if df is not None and len(df) else "Demo Tamil Nadu e-commerce baseline"
+
+    daily = daily_revenue(market_df).sort_values("date")
+    values = daily["revenue"].to_numpy(dtype=float)
+    if len(values) == 0:
+        market_df = demo_tamil_nadu_rows()
+        daily = daily_revenue(market_df).sort_values("date")
+        values = daily["revenue"].to_numpy(dtype=float)
+        source_label = "Demo Tamil Nadu e-commerce baseline"
+
+    avg7 = np.mean(values[-7:]) if len(values) >= 7 else np.mean(values)
+    avg30 = np.mean(values[-30:]) if len(values) >= 30 else avg7
+    moving_avg = avg7 * 0.68 + avg30 * 0.32
+    recent = values[-30:] if len(values) >= 2 else values
+    slope = np.polyfit(np.arange(len(recent)), recent, 1)[0] if len(recent) > 1 else 0
+    trend_pct = float(np.clip(slope / max(moving_avg, 1), -0.035, 0.045))
+    may_seasonality = 1.12
+    weekday_values = daily[daily["date"].dt.dayofweek == simulated_now.weekday()]["revenue"]
+    weekday_factor = float(np.clip(weekday_values.mean() / max(np.mean(values), 1), 0.82, 1.22)) if len(weekday_values) else 1
+    hour_factor = 0.72 + 0.48 * np.sin(((simulated_now.hour - 8) / 24) * 2 * np.pi) ** 2
+    category_strength = np.mean(list(TN_CATEGORY_MULTIPLIERS.values()))
+    base_daily = moving_avg * may_seasonality * weekday_factor * category_strength
+    elapsed_days = simulated_now.day - 1 + simulated_now.hour / 24 + simulated_now.minute / 1440 + simulated_now.second / 86400
+    month_days = 31
+    month_trend_factor = float(np.clip(1 + trend_pct * month_days, 0.72, 1.75))
+
+    monthly_prediction = max(0, base_daily * month_days * month_trend_factor)
+    today_prediction = max(0, base_daily * float(np.clip(1 + trend_pct * simulated_now.day, 0.75, 1.55)))
+    hourly_prediction = today_prediction / 24 * hour_factor
+    minute_prediction = hourly_prediction / 60
+    second_prediction = minute_prediction / 60
+    month_counter = monthly_prediction * min(elapsed_days / month_days, 1)
+    growth_rate = ((monthly_prediction - max(avg30 * month_days, 1)) / max(avg30 * month_days, 1)) * 100
+    volatility = float(np.std(recent) / max(avg30, 1))
+    confidence_score = int(np.clip(88 - volatility * 45 + min(len(values), 90) * 0.18, 42, 94))
+
+    city_total = sum(TN_CITY_MULTIPLIERS.values())
+    city_sales = pd.DataFrame(
+        [
+            {"city": city, "predicted_sales": monthly_prediction * TN_CITY_MULTIPLIERS[city] / city_total}
+            for city in TAMIL_NADU_CITIES
+        ]
+    ).sort_values("predicted_sales", ascending=False)
+    category_total = sum(TN_CATEGORY_MULTIPLIERS.values())
+    category_sales = pd.DataFrame(
+        [
+            {"category": category, "predicted_sales": monthly_prediction * TN_CATEGORY_MULTIPLIERS[category] / category_total}
+            for category in TAMIL_NADU_CATEGORIES
+        ]
+    ).sort_values("predicted_sales", ascending=False)
+    insight = (
+        f"Tamil Nadu e-commerce sales are expected to {'grow' if growth_rate >= 0 else 'decline'} by "
+        f"{abs(growth_rate):.1f}% in May 2026 based on uploaded dataset trend, moving average, seasonality, "
+        f"and city/category demand patterns."
+    )
+
+    return {
+        "source": source_label,
+        "timestamp": simulated_now.strftime("%H:%M:%S"),
+        "monthly_prediction": monthly_prediction,
+        "today_prediction": today_prediction,
+        "hourly_prediction": hourly_prediction,
+        "minute_prediction": minute_prediction,
+        "second_prediction": second_prediction,
+        "month_counter": month_counter,
+        "growth_rate": growth_rate,
+        "confidence_score": confidence_score,
+        "city_sales": city_sales,
+        "category_sales": category_sales,
+        "insight": insight,
+        "disclaimer": TN_DISCLAIMER,
+    }
+
+
 def analyze_reviews(df):
     positive = {"excellent", "great", "good", "loved", "love", "fresh", "quick", "fast", "helpful", "smooth", "friendly", "premium", "value"}
     negative = {"delay", "late", "damaged", "bad", "slow", "poor", "issue", "stock", "return", "broken", "missing"}
@@ -424,7 +685,7 @@ def detect_anomalies(df):
     return anomalies.tail(10).sort_values("date", ascending=False)
 
 
-def business_summary(df, kpis, sentiment_pct, issues, anomalies, india_forecast):
+def business_summary(df, kpis, sentiment_pct, issues, anomalies, india_forecast, tn_forecast):
     weak_region = df.groupby("region")["revenue"].sum().idxmin()
     top_issue = next((issue for issue, count in issues if count > 0), "no repeated issue detected")
     anomaly_text = f"{len(anomalies)} anomaly alert(s) detected" if len(anomalies) else "No major anomaly detected"
@@ -433,12 +694,15 @@ def business_summary(df, kpis, sentiment_pct, issues, anomalies, india_forecast)
         f"and {kpis['total_units']:,.0f} units sold. {kpis['best_region']} is the strongest region, "
         f"while {weak_region} needs attention. Customer sentiment is {sentiment_pct['positive']}% positive "
         f"and {sentiment_pct['negative']}% negative. {anomaly_text}. "
-        f"India 2026 full-year sales are projected at {inr(india_forecast['full_year'])}."
+        f"India 2026 full-year sales are projected at {inr(india_forecast['full_year'])}. "
+        f"Tamil Nadu May 2026 e-commerce sales are estimated at {inr(tn_forecast['monthly_prediction'])} "
+        f"with {tn_forecast['confidence_score']}% confidence."
     )
     recommendations = [
         f"Protect momentum in {kpis['best_region']} by repeating the campaigns, inventory planning, and service practices working there.",
         f"Investigate {weak_region} before increasing spend; review discounts, delivery experience, and local product mix.",
         f"Fix {top_issue.lower()} first because repeated review themes usually explain hidden sales friction.",
+        f"Use {tn_forecast['city_sales'].iloc[0]['city']} as the Tamil Nadu growth benchmark and compare weaker cities against its product mix.",
         "Compare discount percentage against revenue lift so promotions grow demand without eroding margin.",
         "Review anomaly alerts weekly and assign an owner for every sharp revenue drop.",
     ]
@@ -451,7 +715,7 @@ def compact_table(df, max_rows=10):
     return df.head(max_rows).to_csv(index=False).strip()
 
 
-def build_ai_context(df, kpis, sentiment_pct, keywords, issues, anomalies, india_forecast, live_forecast, recommendations, metrics):
+def build_ai_context(df, kpis, sentiment_pct, keywords, issues, anomalies, india_forecast, live_forecast, tn_forecast, recommendations, metrics):
     daily = daily_revenue(df).sort_values("date")
     recent_daily = daily.tail(12)
     region_breakdown = (
@@ -474,6 +738,8 @@ def build_ai_context(df, kpis, sentiment_pct, keywords, issues, anomalies, india
     top_keywords = ", ".join([f"{word} ({count})" for word, count in keywords]) or "None"
     issue_text = ", ".join([f"{issue}: {count}" for issue, count in issues if count > 0]) or "No repeated issues"
     anomaly_text = compact_table(anomalies[["date", "revenue", "pct_change", "type"]], 8) if len(anomalies) else "No major anomalies detected"
+    tn_city_text = compact_table(tn_forecast["city_sales"], 9)
+    tn_category_text = compact_table(tn_forecast["category_sales"], 7)
 
     return f"""
 Dataset period: {df['date'].min().date()} to {df['date'].max().date()}
@@ -485,6 +751,8 @@ Best product category: {kpis['best_category']}
 Model performance: RMSE {metrics['RMSE']:.2f}, MAE {metrics['MAE']:.2f}, R2 {metrics['R2']:.3f}
 Live sales forecast: Today {inr(live_forecast['today_estimate'])}, Tomorrow {inr(live_forecast['tomorrow_forecast'])}, Next 7 days {inr(live_forecast['next_7'])}, Next 30 days {inr(live_forecast['next_30'])}, confidence {live_forecast['confidence']}, direction {live_forecast['direction']}, weekly growth {live_forecast['weekly_growth']:.1f}%.
 India 2026 forecast: As of {india_forecast['as_of']}, full-year projection {inr(india_forecast['full_year'])}, remaining forecast {inr(india_forecast['remaining_forecast'])}, confidence {india_forecast['confidence']}.
+Tamil Nadu live May 2026 prediction: Month {inr(tn_forecast['monthly_prediction'])}, today {inr(tn_forecast['today_prediction'])}, current hour {inr(tn_forecast['hourly_prediction'])}, current minute {inr(tn_forecast['minute_prediction'])}, current second {inr(tn_forecast['second_prediction'])}, live counter {inr(tn_forecast['month_counter'])}, growth {tn_forecast['growth_rate']:.1f}%, confidence score {tn_forecast['confidence_score']}%, source {tn_forecast['source']}.
+Tamil Nadu disclaimer: {tn_forecast['disclaimer']}
 Customer sentiment: positive {sentiment_pct['positive']}%, neutral {sentiment_pct['neutral']}%, negative {sentiment_pct['negative']}%.
 Top review keywords: {top_keywords}
 Detected customer issues: {issue_text}
@@ -498,6 +766,12 @@ Region breakdown:
 Product category breakdown:
 {compact_table(category_breakdown, 12)}
 
+Tamil Nadu city-wise predicted sales:
+{tn_city_text}
+
+Tamil Nadu category-wise predicted sales:
+{tn_category_text}
+
 Recent daily sales:
 {compact_table(recent_daily, 12)}
 
@@ -509,7 +783,7 @@ Current recommendations:
 """.strip()
 
 
-def local_chatbot_answer(question, df, kpis, sentiment_pct, issues, anomalies, india_forecast, live_forecast, recommendations, metrics):
+def local_chatbot_answer(question, df, kpis, sentiment_pct, issues, anomalies, india_forecast, live_forecast, tn_forecast, recommendations, metrics):
     lower = question.lower()
     region_sales = df.groupby("region")["revenue"].sum().sort_values(ascending=False)
     category_sales = df.groupby("product_category")["revenue"].sum().sort_values(ascending=False)
@@ -520,7 +794,28 @@ def local_chatbot_answer(question, df, kpis, sentiment_pct, issues, anomalies, i
     previous_revenue = float(daily.iloc[-2]["revenue"]) if len(daily) > 1 else latest_revenue
     latest_change = ((latest_revenue - previous_revenue) / max(previous_revenue, 1)) * 100
     top_issue = next((issue for issue, count in issues if count > 0), "no repeated customer issue")
+    top_tn_city = tn_forecast["city_sales"].iloc[0]
 
+    if any(phrase in lower for phrase in ["live sales now", "sales now", "current second", "this hour", "current hour"]):
+        return (
+            f"Live Tamil Nadu simulated sales for May 2026 are currently {inr(tn_forecast['month_counter'])}. "
+            f"This hour is estimated at {inr(tn_forecast['hourly_prediction'])}, this minute at {inr(tn_forecast['minute_prediction'])}, "
+            f"and this second at {inr(tn_forecast['second_prediction'])}. {tn_forecast['disclaimer']}"
+        )
+    if any(phrase in lower for phrase in ["tamil nadu", "tamilnadu", "tn sales", "may 2026", "this month", "current month"]):
+        if "city" in lower or "highest" in lower:
+            return (
+                f"{top_tn_city['city']} has the highest Tamil Nadu predicted sales at {inr(top_tn_city['predicted_sales'])}. "
+                f"The top three cities are "
+                f"{', '.join([f'{row.city} ({inr(row.predicted_sales)})' for row in tn_forecast['city_sales'].head(3).itertuples()])}."
+            )
+        return (
+            f"May 2026 Tamil Nadu e-commerce sales are forecast at {inr(tn_forecast['monthly_prediction'])}. "
+            f"Today is {inr(tn_forecast['today_prediction'])}, growth is {tn_forecast['growth_rate']:.1f}%, "
+            f"and confidence score is {tn_forecast['confidence_score']}%. {tn_forecast['insight']}"
+        )
+    if "download" in lower or "pdf" in lower:
+        return "Go to the Reports tab and click Download PDF report. It includes dataset summary, predictions, Tamil Nadu live forecast, city/category sales, recommendations, anomalies, and the predictive-estimate disclaimer."
     if any(word in lower for word in ["highest", "best", "top region", "region has"]):
         return f"{region_sales.index[0]} has the highest sales with {inr(region_sales.iloc[0])}. The weakest region is {weak_region} with {inr(region_sales.iloc[-1])}."
     if any(word in lower for word in ["product", "category", "item"]):
@@ -593,7 +888,7 @@ User question:
     raise RuntimeError("No AI API key configured")
 
 
-def pdf_report(summary, recommendations, kpis, india_forecast, live_forecast, anomalies):
+def pdf_report(summary, recommendations, kpis, india_forecast, live_forecast, tn_forecast, anomalies):
     pdf = FPDF()
     pdf.add_page()
     text_width = 180
@@ -611,6 +906,29 @@ def pdf_report(summary, recommendations, kpis, india_forecast, live_forecast, an
     pdf.cell(text_width, 8, "India 2026 Forecast", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.set_font("Helvetica", size=10)
     pdf.multi_cell(text_width, 6, f"As of: {india_forecast['as_of']}\nToday estimate: {inr(india_forecast['today_estimate'])}\nRemaining forecast: {inr(india_forecast['remaining_forecast'])}\nFull-year projection: {inr(india_forecast['full_year'])}\nConfidence: {india_forecast['confidence']}")
+    pdf.ln(2)
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(text_width, 8, "Tamil Nadu Live E-Commerce Sales Prediction - 2026", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_font("Helvetica", size=10)
+    city_lines = "\n".join([f"{row.city}: {inr(row.predicted_sales)}" for row in tn_forecast["city_sales"].head(6).itertuples()])
+    category_lines = "\n".join([f"{row.category}: {inr(row.predicted_sales)}" for row in tn_forecast["category_sales"].head(6).itertuples()])
+    pdf.multi_cell(
+        text_width,
+        6,
+        (
+            f"Current month forecast: {inr(tn_forecast['monthly_prediction'])}\n"
+            f"Today: {inr(tn_forecast['today_prediction'])}\n"
+            f"Current hour: {inr(tn_forecast['hourly_prediction'])}\n"
+            f"Current minute: {inr(tn_forecast['minute_prediction'])}\n"
+            f"Current second estimate: {inr(tn_forecast['second_prediction'])}\n"
+            f"Growth for May 2026: {tn_forecast['growth_rate']:.1f}%\n"
+            f"Confidence score: {tn_forecast['confidence_score']}%\n"
+            f"Insight: {tn_forecast['insight']}\n"
+            f"City-wise predicted sales:\n{city_lines}\n"
+            f"Category-wise predicted sales:\n{category_lines}\n"
+            f"Disclaimer: {tn_forecast['disclaimer']}"
+        ),
+    )
     pdf.ln(2)
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(text_width, 8, "Business Summary", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
@@ -647,11 +965,62 @@ def metric_card(label, value, detail):
     )
 
 
+@st.fragment(run_every="1s")
+def render_tamil_nadu_live_dashboard(df):
+    forecast = tamil_nadu_live_prediction(df)
+    signature = f"{len(df)}-{round(float(df['revenue'].sum()), 2)}-{str(df['date'].max())}"
+    if st.session_state.get("tn_live_signature") != signature:
+        st.session_state["tn_live_signature"] = signature
+        st.session_state["tn_live_points"] = []
+
+    point = {
+        "time": forecast["timestamp"],
+        "live_counter": forecast["month_counter"],
+        "second_estimate": forecast["second_prediction"],
+    }
+    st.session_state.setdefault("tn_live_points", []).append(point)
+    st.session_state["tn_live_points"] = st.session_state["tn_live_points"][-45:]
+
+    st.markdown("### Live Tamil Nadu E-Commerce Sales Prediction - 2026")
+    st.warning(forecast["disclaimer"])
+    top_line = st.columns([1.4, 1, 1])
+    with top_line[0]:
+        metric_card("Live Simulated May 2026 Counter", inr(forecast["month_counter"]), f"Updates every second at {forecast['timestamp']}")
+    with top_line[1]:
+        metric_card("May 2026 Growth", f"{forecast['growth_rate']:.1f}%", forecast["source"])
+    with top_line[2]:
+        metric_card("Confidence Score", f"{forecast['confidence_score']}%", "Moving average + trend + seasonality")
+
+    live_cols = st.columns(5)
+    live_metrics = [
+        ("Current Month 2026 Sales", forecast["monthly_prediction"], "May full-month forecast"),
+        ("Today's Sales", forecast["today_prediction"], "Clock-aware daily demand"),
+        ("Current Hour Sales", forecast["hourly_prediction"], "Hourly run rate"),
+        ("Current Minute Sales", forecast["minute_prediction"], "Minute-level estimate"),
+        ("Current Second Estimated Sales", forecast["second_prediction"], "Second-level simulation"),
+    ]
+    for col, (label, value, detail) in zip(live_cols, live_metrics):
+        with col:
+            metric_card(label, inr(value), detail)
+
+    st.info(forecast["insight"])
+    chart_df = pd.DataFrame(st.session_state["tn_live_points"])
+    st.plotly_chart(
+        px.line(chart_df, x="time", y=["live_counter", "second_estimate"], title="Live Tamil Nadu Forecast Updating Every Second"),
+        width="stretch",
+    )
+    city_col, category_col = st.columns(2)
+    with city_col:
+        st.plotly_chart(px.bar(forecast["city_sales"], x="city", y="predicted_sales", title="Tamil Nadu City-wise Predicted Sales"), width="stretch")
+    with category_col:
+        st.plotly_chart(px.bar(forecast["category_sales"], x="category", y="predicted_sales", title="Category-wise Predicted Sales"), width="stretch")
+
+
 st.markdown(
     """
     <div class="hero">
         <h1>Sales Prediction System with NLP Insights</h1>
-        <p>Upload CSV sales data, forecast revenue, analyze reviews, detect anomalies, chat with AI, and export reports. Built for Streamlit Community Cloud.</p>
+        <p>Upload almost any sales CSV, map columns flexibly, simulate Tamil Nadu 2026 e-commerce sales live, chat with AI, and export portfolio-ready reports.</p>
     </div>
     """,
     unsafe_allow_html=True,
@@ -661,7 +1030,7 @@ with st.sidebar:
     st.title("Sales AI")
     uploaded_file = st.file_uploader("Upload sales CSV", type=["csv"])
     use_sample = st.button("Load sample dataset", width="stretch")
-    st.caption("Required columns: date, region, product_category, units_sold, revenue, discount_pct, customer_reviews")
+    st.caption("Flexible upload: the app auto-detects date, region/city, category/product, quantity, revenue, discount, and review columns.")
     st.divider()
     st.caption("AI chatbot configuration")
     runtime_groq_key = st.text_input("Temporary Groq API key", type="password", help="Stored only in this Streamlit session. For production, use Streamlit Cloud secrets.")
@@ -673,20 +1042,46 @@ with st.sidebar:
     provider_name, provider_state = ai_provider_status()
     st.success(f"{provider_name}: {provider_state}" if provider_state == "Connected" else "Local fallback active")
     st.caption("Production secrets for Streamlit Cloud")
-    st.code("GROQ_API_KEY = \"your_key\"\nGROQ_MODEL = \"llama-3.3-70b-versatile\"", language="toml")
+    st.code("GROQ_API_KEY = \"your_key\"\nGROQ_MODEL = \"llama-3.3-70b-versatile\"\nGEMINI_API_KEY = \"your_key\"", language="toml")
 
 
 try:
     raw_df = pd.read_csv(uploaded_file) if uploaded_file is not None and not use_sample else load_sample_data()
-    clean_df = preprocess_data(raw_df)
 except Exception as exc:
-    st.error(str(exc))
+    st.error(f"Could not read the CSV file: {exc}")
     st.stop()
+
+detected_mapping = auto_detect_column_mapping(raw_df)
+mapping_warnings = mapping_completeness(detected_mapping)
+with st.expander("Dataset preview and column mapping", expanded=bool(mapping_warnings)):
+    st.markdown("#### Uploaded Dataset Preview")
+    st.dataframe(raw_df.head(12), width="stretch")
+    column_mapping = render_column_mapping(raw_df, detected_mapping)
+    final_warnings = mapping_completeness(column_mapping)
+    if final_warnings:
+        for warning in final_warnings:
+            st.warning(warning)
+    else:
+        st.success("Column mapping looks strong. The app can build full dashboard, prediction, chatbot, and report outputs.")
+
+try:
+    clean_df = preprocess_data(raw_df, column_mapping)
+except Exception as exc:
+    st.error(f"Could not preprocess the dataset: {exc}")
+    st.stop()
+
+if len(clean_df) < 2:
+    st.error("The dataset needs at least 2 usable rows after cleaning.")
+    st.stop()
+
+with st.expander("Cleaned dataset preview", expanded=False):
+    st.dataframe(clean_df[REQUIRED_COLUMNS + ["month", "year", "day_of_week", "lag_7", "lag_30", "rolling_mean_7"]].head(12), width="stretch")
 
 model, metrics, validation = build_model(clean_df)
 forecast_chart = forecast_daily_sales(clean_df)
 live_forecast = live_sales_prediction(clean_df)
 india_forecast = india_2026_forecast(clean_df)
+tn_forecast = tamil_nadu_live_prediction(clean_df)
 sentiment_pct, keywords, issues = analyze_reviews(clean_df)
 anomalies = detect_anomalies(clean_df)
 
@@ -699,13 +1094,16 @@ kpis = {
     "best_region_revenue": region_sales.iloc[0]["revenue"],
     "best_category": category_sales.iloc[0]["product_category"],
 }
-summary, recommendations = business_summary(clean_df, kpis, sentiment_pct, issues, anomalies, india_forecast)
-ai_context_text = build_ai_context(clean_df, kpis, sentiment_pct, keywords, issues, anomalies, india_forecast, live_forecast, recommendations, metrics)
+summary, recommendations = business_summary(clean_df, kpis, sentiment_pct, issues, anomalies, india_forecast, tn_forecast)
+ai_context_text = build_ai_context(clean_df, kpis, sentiment_pct, keywords, issues, anomalies, india_forecast, live_forecast, tn_forecast, recommendations, metrics)
 
 tab_dashboard, tab_prediction, tab_chatbot, tab_report = st.tabs(["Dashboard", "Prediction", "AI Chatbot", "Reports"])
 
 with tab_dashboard:
     st.subheader("Live Dashboard")
+    render_tamil_nadu_live_dashboard(clean_df)
+    st.divider()
+
     cols = st.columns(4)
     with cols[0]:
         metric_card("Total Revenue", inr(kpis["total_revenue"]), "Cleaned dataset revenue")
@@ -817,6 +1215,11 @@ with tab_chatbot:
         st.session_state.last_quick_question = ""
 
     quick_questions = [
+        "What are live sales now?",
+        "Which Tamil Nadu city has highest sales?",
+        "What is the sales prediction for this month?",
+        "Summarize May 2026 Tamil Nadu sales",
+        "Download the report",
         "Which region has highest sales?",
         "Predict next 30 days sales",
         "Why did sales drop?",
@@ -841,6 +1244,7 @@ with tab_chatbot:
             anomalies,
             india_forecast,
             live_forecast,
+            tn_forecast,
             recommendations,
             metrics,
         )
@@ -863,6 +1267,16 @@ with tab_chatbot:
 with tab_report:
     st.subheader("Business Report Summary")
     st.write(summary)
+    st.markdown("### Tamil Nadu Live Prediction Summary")
+    st.write(tn_forecast["insight"])
+    tn_report_cols = st.columns(3)
+    with tn_report_cols[0]:
+        metric_card("May 2026 Forecast", inr(tn_forecast["monthly_prediction"]), f"Growth: {tn_forecast['growth_rate']:.1f}%")
+    with tn_report_cols[1]:
+        metric_card("Top Tamil Nadu City", tn_forecast["city_sales"].iloc[0]["city"], inr(tn_forecast["city_sales"].iloc[0]["predicted_sales"]))
+    with tn_report_cols[2]:
+        metric_card("Top Category", tn_forecast["category_sales"].iloc[0]["category"], inr(tn_forecast["category_sales"].iloc[0]["predicted_sales"]))
+    st.warning(tn_forecast["disclaimer"])
     st.markdown("### Live Forecast Summary")
     st.write(live_forecast["insight"])
     st.markdown("### Recommendations")
@@ -891,5 +1305,5 @@ with tab_report:
     ).to_csv(index=False).encode("utf-8")
     st.download_button("Download latest prediction CSV", prediction_output, "prediction_results.csv", "text/csv")
 
-    report_bytes = pdf_report(summary, recommendations, kpis, india_forecast, live_forecast, anomalies)
+    report_bytes = pdf_report(summary, recommendations, kpis, india_forecast, live_forecast, tn_forecast, anomalies)
     st.download_button("Download PDF report", report_bytes, "sales_prediction_ai_report.pdf", "application/pdf")

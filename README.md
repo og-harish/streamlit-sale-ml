@@ -1,14 +1,19 @@
 # Sales Prediction AI - Streamlit Edition
 
-A Streamlit Community Cloud-ready sales analytics app for CSV upload, preprocessing, revenue prediction, India 2026 live forecasting, review insights, anomaly detection, AI chatbot answers, and downloadable reports.
+A Streamlit Community Cloud-ready sales analytics app for flexible CSV upload, preprocessing, revenue prediction, Tamil Nadu 2026 live e-commerce simulation, India 2026 forecasting, review insights, anomaly detection, AI chatbot answers, and downloadable reports.
 
 ## Features
 
 - Upload CSV sales data or use the included sample dataset
-- Validate required columns: `date`, `region`, `product_category`, `units_sold`, `revenue`, `discount_pct`, `customer_reviews`
+- Auto-detect flexible sales columns such as `order_date`, `city`, `product`, `qty`, `sales`, `amount`, `price`, `feedback`, and `comment`
+- Manually map columns with dropdowns if the app cannot detect them automatically
+- Work with partial data by filling missing region/category/review values and calculating revenue from `quantity x price` when possible
 - Clean missing values, remove duplicates, parse dates, and create time-series features
 - Train a browser/server-side Streamlit RandomForest revenue prediction model
 - Show KPI cards, revenue trend, region sales, category performance, forecast charts, and anomaly alerts
+- Show **Live Tamil Nadu E-Commerce Sales Prediction - 2026** with every-second simulated counter
+- Predict May 2026 Tamil Nadu monthly, daily, hourly, minute, and second-level estimated sales
+- Show Tamil Nadu city-wise and category-wise predicted sales for Chennai, Coimbatore, Madurai, Trichy, Salem, Tirunelveli, Erode, Vellore, and Thanjavur
 - Predict 2026 India sales with today estimate, YTD actuals, remaining-year forecast, and full-year projection
 - Live sales prediction cards for today, tomorrow, next 7 days, and next 30 days
 - Analyze review sentiment, keywords, and recurring issues
@@ -70,9 +75,12 @@ If no API key is configured, the chatbot still works with local dataset-aware an
 - AI provider fallback: if Groq/Gemini fails, the app returns local business analysis instead of breaking
 - Live forecast chart and executive insight text for portfolio-ready dashboard storytelling
 - PDF report now includes live sales prediction values
+- PDF report includes Tamil Nadu May 2026 live prediction, city/category forecasts, confidence score, and predictive-estimate disclaimer
+- Flexible dataset engine supports different sales CSV schemas instead of forcing one exact column format
 
 ## Notes
 
 - The sample data is India-focused and includes 2026 rows so the India forecast can show YTD actuals.
+- Tamil Nadu live values are predictive simulations based on uploaded or demo trend patterns, not official live government data.
 - Forecasts are business estimates, not financial guarantees.
 - For heavier models such as XGBoost or Prophet, add them later only if your Streamlit Cloud resource limits are comfortable.
