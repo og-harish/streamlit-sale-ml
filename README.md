@@ -4,7 +4,7 @@ A Streamlit Community Cloud-ready professional sales forecasting workspace for f
 
 ## Features
 
-- Drag-and-drop CSV upload with an explicit **Process Dataset** workflow
+- Full dashboard loads with the included sample dataset, then drag-and-drop CSV upload can replace it through an explicit **Process Dataset** workflow
 - Automatic post-upload processing pipeline with field mapping, cleaning, duplicate handling, and engineered forecasting features
 - Auto-detect flexible sales columns such as `order_date`, `city`, `product`, `qty`, `sales`, `amount`, `price`, `feedback`, and `comment`
 - Manually map columns with dropdowns if the app cannot detect them automatically

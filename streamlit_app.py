@@ -820,26 +820,14 @@ def render_google_auth_gate():
 
 def render_top_shell(user_info, current_page):
     st.markdown(
-        """
-        <div class="crm-alert">
-            Planned India Data Center Maintenance on 10th May 2026 and 17th May 2026, between 06.30AM to 09.30AM IST.
-            <a href="#" style="color:#315BE8;text-decoration:none;font-weight:700;">Know more</a>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    st.markdown(
         f"""
         <div class="crm-toolbar">
             <div>
-                <span class="crm-button">{current_page}</span>
-                <span class="crm-button">Org Overview</span>
+                <strong style="color:#091B33;">{current_page}</strong>
+                <span style="color:#5F6F86;margin-left:.75rem;font-weight:700;">Sales Forecast Workspace</span>
             </div>
             <div>
-                <span class="crm-button">Refresh</span>
-                <span class="crm-button">Add Component</span>
-                <span class="crm-button primary">Create Dashboard</span>
-                <span class="crm-button">{user_info['name']}</span>
+                <span style="color:#5F6F86;font-weight:700;">{user_info['name']}</span>
             </div>
         </div>
         """,
@@ -2401,6 +2389,12 @@ st.markdown(
         border-radius: 8px;
         background: rgba(255, 255, 255, .86);
     }
+    [data-testid="stToolbar"],
+    [data-testid="stDecoration"],
+    #MainMenu,
+    footer {
+        display: none !important;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -2773,6 +2767,105 @@ Territory statuses: {', '.join([f"{row.region}: {row.status}" for row in crm_for
     }
 
 
+def build_dataset_context(raw_df, dataset_name, column_mapping):
+    clean_df = preprocess_data(raw_df, column_mapping)
+    if len(clean_df) < 2:
+        raise ValueError("The dataset needs at least 2 usable rows after cleaning.")
+
+    processing_summary = build_processing_summary(raw_df, clean_df, column_mapping)
+    sentiment_pct, keywords, issues = analyze_reviews(clean_df)
+    anomalies = detect_anomalies(clean_df)
+    region_sales = clean_df.groupby("region", as_index=False)["revenue"].sum().sort_values("revenue", ascending=False)
+    category_sales = clean_df.groupby("product_category", as_index=False)["revenue"].sum().sort_values("revenue", ascending=False)
+    forecast_chart = forecast_daily_sales(clean_df)
+    live_forecast = live_sales_prediction(clean_df)
+    india_forecast = india_2026_forecast(clean_df)
+    tn_forecast = tamil_nadu_live_prediction(clean_df)
+    model, metrics, validation, leaderboard = build_model(clean_df)
+    crm_forecast = build_crm_forecast(clean_df, live_forecast, anomalies)
+    predictions_df = build_future_predictions(live_forecast, forecast_chart)
+
+    default_pred_date = date(2026, 5, 5)
+    default_region = sorted(clean_df["region"].unique())[0]
+    default_product = sorted(clean_df["product_category"].unique())[0]
+    default_units = float(clean_df["units_sold"].median())
+    default_discount = float(clean_df["discount_pct"].median())
+    default_predicted_revenue, _default_feature_row = predict_revenue_scenario(
+        model,
+        clean_df,
+        default_pred_date,
+        default_region,
+        default_product,
+        default_units,
+        default_discount,
+    )
+    default_prediction_result = {
+        "date": default_pred_date,
+        "region": default_region,
+        "product_category": default_product,
+        "units_sold": default_units,
+        "discount_pct": default_discount,
+        "predicted_revenue": default_predicted_revenue,
+    }
+    kpis = {
+        "total_revenue": clean_df["revenue"].sum(),
+        "total_units": clean_df["units_sold"].sum(),
+        "best_region": region_sales.iloc[0]["region"],
+        "best_region_revenue": region_sales.iloc[0]["revenue"],
+        "best_category": category_sales.iloc[0]["product_category"],
+    }
+    summary, recommendations = business_summary(clean_df, kpis, sentiment_pct, issues, anomalies, india_forecast, tn_forecast)
+    ai_context_text = build_ai_context(clean_df, kpis, sentiment_pct, keywords, issues, anomalies, india_forecast, live_forecast, tn_forecast, recommendations, metrics)
+    ai_context_text += f"""
+
+CRM forecast center:
+Period: {crm_forecast['period_label']} ({crm_forecast['date_range']})
+Quota: {inr(crm_forecast['quota'])}
+Weighted forecast: {inr(crm_forecast['weighted_forecast'])}
+Closed revenue: {inr(crm_forecast['closed'])}
+Quota gap: {inr(crm_forecast['quota_gap'])}
+Attainment: {crm_forecast['attainment']:.1f}%
+Pipeline coverage: {crm_forecast['pipeline_coverage']:.1f}x
+Forecast confidence: {crm_forecast['confidence']}%
+Forecast categories: {', '.join([f"{row.category}: {inr(row.amount)}" for row in crm_forecast['categories'].itertuples()])}
+Territory statuses: {', '.join([f"{row.region}: {row.status}" for row in crm_forecast['territories'].itertuples()])}
+"""
+    return {
+        "raw_df": raw_df,
+        "dataset_name": dataset_name,
+        "column_mapping": column_mapping,
+        "clean_df": clean_df,
+        "model": model,
+        "metrics": metrics,
+        "validation": validation,
+        "leaderboard": leaderboard,
+        "forecast_chart": forecast_chart,
+        "live_forecast": live_forecast,
+        "india_forecast": india_forecast,
+        "tn_forecast": tn_forecast,
+        "sentiment_pct": sentiment_pct,
+        "keywords": keywords,
+        "issues": issues,
+        "anomalies": anomalies,
+        "crm_forecast": crm_forecast,
+        "region_sales": region_sales,
+        "category_sales": category_sales,
+        "kpis": kpis,
+        "summary": summary,
+        "recommendations": recommendations,
+        "ai_context_text": ai_context_text,
+        "processing_summary": processing_summary,
+        "default_prediction_result": default_prediction_result,
+        "predictions_df": predictions_df,
+    }
+
+
+def build_default_dataset_context():
+    raw_df = load_sample_data()
+    column_mapping = auto_detect_column_mapping(raw_df)
+    return build_dataset_context(raw_df, "Sample dataset", column_mapping)
+
+
 def render_processed_downloads(context):
     report_bytes = pdf_report(
         context["summary"],
@@ -2814,23 +2907,13 @@ def render_csv_upload_processor():
         label_visibility="collapsed",
     )
 
-    st.download_button(
-        "Download Google Colab Notebook",
-        generate_colab_notebook(),
-        "sales_forecast_colab_pipeline.ipynb",
-        "application/x-ipynb+json",
-        width="stretch",
-        key="download_upload_colab",
-    )
-
     if uploaded_file is None:
-        st.info("Upload a CSV file and click Process Dataset to build the dashboard.")
+        st.info("The dashboard is currently using the included sample dataset. Upload a CSV and click Process Dataset to replace it.")
         return None
 
     upload_signature = f"{uploaded_file.name}:{getattr(uploaded_file, 'size', 0)}"
     if st.session_state.get("active_upload_signature") != upload_signature:
         st.session_state["active_upload_signature"] = upload_signature
-        st.session_state.pop("dataset_context", None)
 
     try:
         raw_df, dataset_name = read_uploaded_dataset(uploaded_file)
@@ -3186,15 +3269,8 @@ render_top_shell(user_info, current_page)
 
 dataset_context = st.session_state.get("dataset_context")
 if not dataset_context:
-    processed_context = render_csv_upload_processor()
-    if processed_context:
-        st.session_state["dataset_context"] = processed_context
-        st.session_state["dataset_processed_notice"] = True
-        st.rerun()
-    dataset_context = st.session_state.get("dataset_context")
-
-if not dataset_context:
-    st.stop()
+    dataset_context = build_default_dataset_context()
+    st.session_state["dataset_context"] = dataset_context
 
 raw_df = dataset_context["raw_df"]
 dataset_name = dataset_context["dataset_name"]
@@ -3226,7 +3302,14 @@ predictions_df = dataset_context["predictions_df"]
 if st.session_state.pop("dataset_processed_notice", False):
     st.success("Dataset processed successfully. Dashboard results are ready.")
 
-if current_page != "Assistant":
+if current_page in {"Home", "Documents"}:
+    processed_context = render_csv_upload_processor()
+    if processed_context:
+        st.session_state["dataset_context"] = processed_context
+        st.session_state["dataset_processed_notice"] = True
+        st.rerun()
+
+if current_page == "Documents":
     render_processed_downloads(dataset_context)
 
 if current_page == "Home":
