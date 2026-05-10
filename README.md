@@ -1,17 +1,26 @@
-# Sales Prediction AI - Streamlit Edition
+# Sales Forecast AI - Streamlit Edition
 
-A Streamlit Community Cloud-ready sales analytics app for flexible CSV upload, preprocessing, revenue prediction, Tamil Nadu 2026 live e-commerce simulation, India 2026 forecasting, review insights, anomaly detection, AI chatbot answers, and downloadable reports.
+A Streamlit Community Cloud-ready professional sales forecasting workspace for flexible sales data upload, quota tracking, CRM-style forecast categories, territory rollups, Google sign-in, revenue prediction, Groq-powered insight answers, and downloadable executive reports.
 
 ## Features
 
-- Drag-and-drop CSV, TSV, TXT, Excel, JSON, JSONL, or Parquet sales data, or use the included sample dataset
+- Drag-and-drop CSV upload with an explicit **Process Dataset** workflow
+- Automatic post-upload processing pipeline with field mapping, cleaning, duplicate handling, and engineered forecasting features
 - Auto-detect flexible sales columns such as `order_date`, `city`, `product`, `qty`, `sales`, `amount`, `price`, `feedback`, and `comment`
 - Manually map columns with dropdowns if the app cannot detect them automatically
-- Work with partial data by filling missing region/category/review values and calculating revenue from `quantity x price` when possible
+- Work with messy CSV files by filling missing region/category/review values and calculating revenue from `quantity x price` when possible
 - Clean missing values, remove duplicates, parse dates, and create time-series features
 - Train a server-side predictive model leaderboard and automatically select the strongest validation model
-- Separate Streamlit pages for Command Center, Live Tamil Nadu, Prediction Studio, Dataset Studio, AI Chatbot, and Reports
-- Floating bottom-right chatbot launcher for fast access from any page
+- CRM-style left navigation for Home, Reports, Analytics, Sales modules, and Activity modules
+- CRM-style Forecast Center inspired by professional sales forecasting workflows
+- Quota, weighted forecast, closed revenue, quota gap, pipeline coverage, and confidence metrics
+- Forecast categories for Closed, Committed, Best Case, Pipeline, and Omitted revenue
+- Territory forecast rollups with manager ownership and risk status
+- Pipeline stage probability chart for weighted revenue planning
+- Native Streamlit Google sign-in using `st.login("google")`
+- Download a generated Google Colab notebook for data loading, preprocessing, EDA, model training, evaluation, and future-sales export
+- Google Colab preprocessing notebook linked from the website
+- Editable PowerPoint project deck linked and downloadable from the website
 - Show KPI cards, revenue trend, region sales, category performance, forecast charts, and anomaly alerts
 - Show **Live Tamil Nadu E-Commerce Sales Prediction - 2026** with every-second simulated counter
 - Predict May 2026 Tamil Nadu monthly, daily, hourly, minute, and second-level estimated sales
@@ -43,14 +52,31 @@ The official Streamlit docs say Community Cloud deploys from a GitHub repository
 streamlit_app.py
 ```
 
-6. Open advanced settings and paste secrets if you want AI chatbot answers:
+6. Open advanced settings and paste secrets for Groq and Google authentication:
 
 ```toml
 GROQ_API_KEY = "your_groq_key_here"
 GROQ_MODEL = "llama-3.3-70b-versatile"
+
+[auth]
+redirect_uri = "https://your-app-name.streamlit.app/oauth2callback"
+cookie_secret = "replace_with_a_long_random_secret"
+
+[auth.google]
+client_id = "your_google_client_id"
+client_secret = "your_google_client_secret"
+server_metadata_url = "https://accounts.google.com/.well-known/openid-configuration"
 ```
 
 7. Deploy.
+
+## Project Asset Links
+
+After this repository is pushed to GitHub, the website exposes these links under the header and on the Project Assets page:
+
+- Google Colab preprocessing notebook: [Open in Colab](https://colab.research.google.com/github/og-harish/streamlit-sale-ml/blob/main/notebooks/sales_forecast_preprocessing_colab.ipynb)
+- PowerPoint project deck: [Download PPTX](https://github.com/og-harish/streamlit-sale-ml/raw/main/project_assets/Sales_Forecast_AI_Project_Deck.pptx)
+- GitHub repository: [og-harish/streamlit-sale-ml](https://github.com/og-harish/streamlit-sale-ml)
 
 ## Secrets
 
@@ -64,11 +90,20 @@ GROQ_MODEL = "llama-3.3-70b-versatile"
 
 # Optional fallback provider
 GEMINI_API_KEY = "your_gemini_key_here"
+
+[auth]
+redirect_uri = "https://your-app-name.streamlit.app/oauth2callback"
+cookie_secret = "replace_with_a_long_random_secret"
+
+[auth.google]
+client_id = "your_google_client_id"
+client_secret = "your_google_client_secret"
+server_metadata_url = "https://accounts.google.com/.well-known/openid-configuration"
 ```
 
 API keys are not shown in the app UI and are not committed to GitHub. The app reads them only from Streamlit Cloud secrets, local `.streamlit/secrets.toml`, or server environment variables.
 
-To use your Groq key on the live Streamlit site, paste it in **Streamlit Cloud -> App settings -> Secrets** as `GROQ_API_KEY`. Do not paste real keys into `streamlit_app.py`, README, or GitHub files.
+To use your Groq key on the live Streamlit site, paste it in **Streamlit Cloud -> App settings -> Secrets** as `GROQ_API_KEY`. For Google sign-in, create a Google OAuth client, add your Streamlit callback URL, and paste the `auth` and `auth.google` blocks into the same Streamlit secrets panel. Do not paste real keys into `streamlit_app.py`, README, or GitHub files. Local development can use `.streamlit/secrets.toml`, which is already ignored by `.gitignore`.
 
 If no API key is configured, the chatbot still works with local dataset-aware answers for questions about best regions, weak categories, forecasts, anomalies, model metrics, customer complaints, and recommendations.
 
@@ -82,7 +117,7 @@ If no API key is configured, the chatbot still works with local dataset-aware an
 - Expanded feature engineering with lag, rolling, volatility, calendar, weekend, city, and product signals
 - Dedicated statewide Tamil Nadu live prediction page with district heatmap, live counter, and every-second velocity estimates
 - Higher-contrast launch screen, cards, upload panel, sidebar, and floating chatbot button for better visibility
-- Live forecast chart and executive insight text for portfolio-ready dashboard storytelling
+- Live forecast chart and executive insight text for professional sales review storytelling
 - PDF report now includes live sales prediction values
 - PDF report includes Tamil Nadu May 2026 live prediction, district/category forecasts, confidence score, and predictive-estimate disclaimer
 - Flexible dataset engine supports different sales CSV schemas instead of forcing one exact column format
@@ -92,4 +127,4 @@ If no API key is configured, the chatbot still works with local dataset-aware an
 - The sample data is India-focused and includes 2026 rows so the India forecast can show YTD actuals.
 - Tamil Nadu live values are predictive simulations based on uploaded or demo trend patterns, not official live government data.
 - Forecasts are business estimates, not financial guarantees.
-- For heavier models such as XGBoost or Prophet, add them later only if your Streamlit Cloud resource limits are comfortable.
+- XGBoost and Prophet are included for the professional CSV processing workflow; keep an eye on Streamlit Cloud resource limits for very large datasets.

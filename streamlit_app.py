@@ -1,4 +1,5 @@
 import io
+import json
 import os
 from datetime import date, datetime, timedelta
 
@@ -15,6 +16,16 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
+
+try:
+    from xgboost import XGBRegressor
+except Exception:
+    XGBRegressor = None
+
+try:
+    from prophet import Prophet
+except Exception:
+    Prophet = None
 
 
 REQUIRED_COLUMNS = [
@@ -42,13 +53,58 @@ CORE_FIELDS = ["date", "units_sold", "revenue"]
 OPTIONAL_FIELDS = ["region", "product_category", "discount_pct", "customer_reviews", "unit_price"]
 
 PAGES = [
-    "Command Center",
-    "Live Tamil Nadu",
-    "Prediction Studio",
-    "Dataset Studio",
-    "AI Chatbot",
+    "Home",
     "Reports",
+    "Analytics",
+    "Assistant",
+    "Leads",
+    "Contacts",
+    "Accounts",
+    "Deals",
+    "Forecasts",
+    "Documents",
+    "Campaigns",
+    "Tasks",
+    "Meetings",
+    "Calls",
 ]
+
+PAGE_GROUPS = {
+    "General": ["Home", "Reports", "Analytics", "Assistant"],
+    "Sales": ["Leads", "Contacts", "Accounts", "Deals", "Forecasts", "Documents", "Campaigns"],
+    "Activities": ["Tasks", "Meetings", "Calls"],
+}
+
+NAV_LABELS = {
+    "Home": "Home",
+    "Reports": "Reports",
+    "Analytics": "Analytics",
+    "Assistant": "Assistant",
+    "Leads": "Leads",
+    "Contacts": "Contacts",
+    "Accounts": "Accounts",
+    "Deals": "Deals",
+    "Forecasts": "Forecasts",
+    "Documents": "Documents",
+    "Campaigns": "Campaigns",
+    "Tasks": "Tasks",
+    "Meetings": "Meetings",
+    "Calls": "Calls",
+}
+FORECAST_MANAGERS = [
+    "Aarav Mehta",
+    "Diya Raman",
+    "Kabir Shah",
+    "Meera Iyer",
+    "Nisha Kapoor",
+    "Rohan Nair",
+]
+
+REPO_URL = "https://github.com/og-harish/streamlit-sale-ml"
+COLAB_NOTEBOOK_PATH = "notebooks/sales_forecast_preprocessing_colab.ipynb"
+PPT_ASSET_PATH = "project_assets/Sales_Forecast_AI_Project_Deck.pptx"
+COLAB_URL = f"https://colab.research.google.com/github/og-harish/streamlit-sale-ml/blob/main/{COLAB_NOTEBOOK_PATH}"
+PPT_URL = f"{REPO_URL}/raw/main/{PPT_ASSET_PATH}"
 
 TAMIL_NADU_CITIES = [
     "Chennai",
@@ -215,7 +271,7 @@ CATEGORICAL_FEATURES = ["region", "product_category"]
 
 
 st.set_page_config(
-    page_title="Sales Prediction AI",
+    page_title="Sales Forecast AI",
     page_icon=":chart_with_upwards_trend:",
     layout="wide",
 )
@@ -463,6 +519,234 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+st.markdown(
+    """
+    <style>
+    :root {
+        --crm-sidebar: #243A63;
+        --crm-sidebar-deep: #1F3359;
+        --crm-active: #3C5180;
+        --crm-border: #D7DFEC;
+        --crm-canvas: #F4F7FC;
+        --crm-text: #091B33;
+        --crm-muted: #5F6F86;
+        --crm-blue: #315BE8;
+    }
+    .main .block-container {
+        padding-top: 0;
+        max-width: 100%;
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+    [data-testid="stAppViewContainer"] {
+        background: var(--crm-canvas);
+    }
+    [data-testid="stSidebar"] {
+        background: var(--crm-sidebar);
+        border-right: 1px solid rgba(15, 23, 42, .18);
+        min-width: 300px;
+    }
+    [data-testid="stSidebar"] * {
+        color: #E8EEF9 !important;
+    }
+    [data-testid="stSidebar"] [role="radiogroup"] label {
+        border-radius: 8px;
+        padding: .42rem .55rem;
+        margin-bottom: .12rem;
+    }
+    [data-testid="stSidebar"] [role="radiogroup"] label:hover {
+        background: rgba(255,255,255,.08);
+    }
+    [data-testid="stSidebar"] [aria-checked="true"] {
+        background: var(--crm-active) !important;
+        color: #FFFFFF !important;
+    }
+    .hero {
+        padding: 1.25rem 1.35rem;
+        border-radius: 0;
+        background: #FFFFFF;
+        border: 1px solid var(--crm-border);
+        box-shadow: 0 6px 18px rgba(15, 23, 42, .08);
+    }
+    .hero h1 {
+        font-size: clamp(1.8rem, 3vw, 2.65rem);
+        line-height: 1.08;
+        margin-bottom: .4rem;
+        text-shadow: none;
+        letter-spacing: 0;
+        color: var(--crm-text) !important;
+    }
+    .hero p {
+        font-size: 1rem;
+        line-height: 1.55;
+        max-width: 1040px;
+        font-weight: 600;
+        color: var(--crm-muted) !important;
+    }
+    .metric-card, .forecast-card, .forecast-panel {
+        border: 1px solid var(--crm-border);
+        background: #FFFFFF;
+        border-radius: 6px;
+        box-shadow: none;
+    }
+    .metric-card {
+        padding: 1rem 1.05rem;
+    }
+    .metric-label {
+        color: var(--crm-muted) !important;
+        font-size: .75rem;
+        letter-spacing: 0;
+        text-transform: uppercase;
+        font-weight: 800;
+    }
+    .metric-value {
+        color: var(--crm-text) !important;
+        font-size: 1.72rem;
+        font-weight: 850;
+        margin-top: .25rem;
+    }
+    .metric-detail {
+        color: var(--crm-muted) !important;
+        font-size: .9rem;
+        font-weight: 600;
+        margin-top: .22rem;
+    }
+    .forecast-panel {
+        padding: 1.15rem;
+        margin: .6rem 0 1rem;
+    }
+    .forecast-card {
+        padding: 1rem;
+        height: 100%;
+    }
+    .forecast-label {
+        color: #64748B !important;
+        font-size: .76rem;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+    .forecast-value {
+        color: var(--crm-text) !important;
+        font-size: 1.45rem;
+        font-weight: 850;
+        margin-top: .25rem;
+    }
+    .forecast-detail {
+        color: #475569 !important;
+        font-size: .88rem;
+        margin-top: .25rem;
+    }
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        padding: .28rem .6rem;
+        border-radius: 999px;
+        font-size: .78rem;
+        font-weight: 800;
+        background: #EFF6FF;
+        color: #1D4ED8 !important;
+        border: 1px solid rgba(37, 99, 235, .18);
+    }
+    .crm-alert {
+        background: #E8F8EF;
+        color: #0B1F1A;
+        border-bottom: 1px solid #C7E9D5;
+        text-align: center;
+        padding: .55rem 1rem;
+        font-size: .92rem;
+    }
+    .crm-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        background: #FFFFFF;
+        border: 1px solid var(--crm-border);
+        box-shadow: 0 6px 18px rgba(15, 23, 42, .08);
+        padding: .8rem .95rem;
+        margin-bottom: 1rem;
+    }
+    .crm-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid var(--crm-border);
+        border-radius: 8px;
+        padding: .48rem .8rem;
+        margin-left: .35rem;
+        color: var(--crm-text) !important;
+        background: #F8FAFC;
+        font-weight: 700;
+        text-decoration: none !important;
+    }
+    .crm-button.primary {
+        background: var(--crm-blue);
+        border-color: var(--crm-blue);
+        color: #FFFFFF !important;
+    }
+    .crm-panel {
+        background: #FFFFFF;
+        border: 1px solid var(--crm-border);
+        border-radius: 6px;
+        padding: 1rem;
+        height: 100%;
+    }
+    .crm-section-title {
+        color: var(--crm-text);
+        font-size: 1rem;
+        font-weight: 850;
+        margin: 0 0 .8rem;
+        text-transform: uppercase;
+    }
+    .teamspace {
+        background: var(--crm-sidebar-deep);
+        padding: .85rem;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,.14);
+        margin: .8rem 0;
+    }
+    .teamspace-badge {
+        display: inline-flex;
+        width: 28px;
+        height: 28px;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        background: #00C9A7;
+        color: white !important;
+        font-weight: 900;
+        margin-right: .45rem;
+    }
+    .sidebar-section {
+        color: #AFC0DD !important;
+        font-size: .78rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        margin: .8rem 0 .35rem;
+    }
+    .upload-dropzone {
+        border-radius: 10px;
+        border: 1px solid rgba(148, 163, 184, .35);
+        background: rgba(255, 255, 255, .08);
+        color: #E2E8F0;
+        padding: 1rem;
+    }
+    .floating-chat-button {
+        background: #2563EB;
+        border-radius: 999px;
+        box-shadow: 0 14px 34px rgba(37, 99, 235, .28);
+        border: 1px solid rgba(255, 255, 255, .8);
+        letter-spacing: 0;
+    }
+    h1, h2, h3, h4 {
+        letter-spacing: 0;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 
 def inr(value):
     return f"INR {float(value or 0):,.0f}"
@@ -476,6 +760,91 @@ def get_secret(name):
     except Exception:
         pass
     return os.getenv(name)
+
+
+def google_auth_configured():
+    try:
+        auth = st.secrets.get("auth") or {}
+        provider = auth.get("google") or {}
+        has_shared = bool(auth.get("redirect_uri") and auth.get("cookie_secret"))
+        has_provider = bool(
+            (auth.get("client_id") and auth.get("client_secret") and auth.get("server_metadata_url"))
+            or (provider.get("client_id") and provider.get("client_secret") and provider.get("server_metadata_url"))
+        )
+        return has_shared and has_provider
+    except Exception:
+        return False
+
+
+def render_google_auth_gate():
+    configured = google_auth_configured()
+    user = getattr(st, "user", None)
+    logged_in = bool(getattr(user, "is_logged_in", False))
+
+    if logged_in:
+        return {
+            "name": getattr(user, "name", None) or getattr(user, "email", None) or "Google user",
+            "email": getattr(user, "email", None) or "",
+            "picture": getattr(user, "picture", None) or "",
+            "source": "Google",
+        }
+
+    if configured:
+        st.markdown(
+            """
+            <div class="hero">
+                <h1>Sales Forecast AI</h1>
+                <p>Sign in with Google to open the CRM forecasting workspace.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        col_a, col_b, col_c = st.columns([1, 1.2, 1])
+        with col_b:
+            st.info("Google sign-in is required for the launched website.")
+            if st.button("Sign in with Google", type="primary", width="stretch"):
+                st.login("google")
+        st.stop()
+
+    if os.getenv("STREAMLIT_ENV") == "production":
+        st.error("Google authentication is not configured. Add Streamlit auth secrets before launching.")
+        st.stop()
+
+    return {
+        "name": "Demo Analyst",
+        "email": "local-demo@salesforecast.ai",
+        "picture": "",
+        "source": "Local demo",
+    }
+
+
+def render_top_shell(user_info, current_page):
+    st.markdown(
+        """
+        <div class="crm-alert">
+            Planned India Data Center Maintenance on 10th May 2026 and 17th May 2026, between 06.30AM to 09.30AM IST.
+            <a href="#" style="color:#315BE8;text-decoration:none;font-weight:700;">Know more</a>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        f"""
+        <div class="crm-toolbar">
+            <div>
+                <span class="crm-button">{current_page}</span>
+                <span class="crm-button">Org Overview</span>
+            </div>
+            <div>
+                <span class="crm-button">Refresh</span>
+                <span class="crm-button">Add Component</span>
+                <span class="crm-button primary">Create Dashboard</span>
+                <span class="crm-button">{user_info['name']}</span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def ai_provider_status():
@@ -493,28 +862,27 @@ def load_sample_data():
 
 def read_uploaded_dataset(uploaded_file):
     if uploaded_file is None:
-        return load_sample_data(), "Sample dataset"
+        raise ValueError("Upload a CSV file before processing.")
 
     file_name = uploaded_file.name.lower()
     extension = file_name.rsplit(".", 1)[-1] if "." in file_name else "csv"
-    uploaded_file.seek(0)
+    if extension != "csv":
+        raise ValueError("Only CSV files are supported in this upload workflow.")
 
-    try:
-        if extension in {"csv", "txt", "tsv"}:
-            separator = "\t" if extension == "tsv" else None
-            return pd.read_csv(uploaded_file, sep=separator, engine="python"), uploaded_file.name
-        if extension in {"xlsx", "xls"}:
-            return pd.read_excel(uploaded_file), uploaded_file.name
-        if extension == "jsonl":
-            return pd.read_json(uploaded_file, lines=True), uploaded_file.name
-        if extension == "json":
-            return pd.read_json(uploaded_file), uploaded_file.name
-        if extension == "parquet":
-            return pd.read_parquet(uploaded_file), uploaded_file.name
-    except Exception as exc:
-        raise ValueError(f"Could not parse {uploaded_file.name}. Please check the file format. Details: {exc}") from exc
+    errors = []
+    for encoding in ["utf-8", "utf-8-sig", "latin1", "cp1252"]:
+        uploaded_file.seek(0)
+        try:
+            frame = pd.read_csv(uploaded_file, encoding=encoding, engine="python", on_bad_lines="skip")
+            frame.columns = [str(col).strip() for col in frame.columns]
+            frame = frame.dropna(axis=1, how="all")
+            if frame.empty:
+                raise ValueError("The CSV file has no usable rows.")
+            return frame, uploaded_file.name
+        except Exception as exc:
+            errors.append(f"{encoding}: {exc}")
 
-    raise ValueError("Unsupported file type. Upload CSV, TSV, TXT, Excel, JSON, JSONL, or Parquet sales data.")
+    raise ValueError(f"Could not parse {uploaded_file.name}. Tried common CSV encodings. Details: {' | '.join(errors[:2])}")
 
 
 def normalize_column_name(name):
@@ -655,6 +1023,24 @@ def preprocess_data(df, mapping):
     return clean.reset_index(drop=True)
 
 
+def build_processing_summary(raw_df, clean_df, column_mapping):
+    date_column = column_mapping.get("date")
+    raw_dates = pd.to_datetime(raw_df[date_column], errors="coerce") if date_column in raw_df.columns else pd.Series(dtype="object")
+    summary = {
+        "raw_rows": int(len(raw_df)),
+        "clean_rows": int(len(clean_df)),
+        "duplicates_removed": max(0, int(len(raw_df) - len(raw_df.drop_duplicates()))),
+        "missing_before": int(raw_df.isna().sum().sum()),
+        "missing_after": int(clean_df.isna().sum().sum()),
+        "mapped_fields": int(sum(bool(value) for value in column_mapping.values())),
+        "engineered_features": int(len([col for col in clean_df.columns if col not in raw_df.columns])),
+        "date_start": clean_df["date"].min().date().isoformat() if len(clean_df) else "-",
+        "date_end": clean_df["date"].max().date().isoformat() if len(clean_df) else "-",
+        "raw_date_coverage": int(raw_dates.notna().sum()) if len(raw_dates) else 0,
+    }
+    return summary
+
+
 def regression_pipeline(regressor):
     preprocessor = ColumnTransformer(
         transformers=[
@@ -666,14 +1052,8 @@ def regression_pipeline(regressor):
 
 
 def regression_candidates():
-    return {
+    candidates = {
         "RandomForest Quantum": RandomForestRegressor(
-            n_estimators=260,
-            min_samples_leaf=2,
-            random_state=42,
-            n_jobs=-1,
-        ),
-        "ExtraTrees Signal Hunter": ExtraTreesRegressor(
             n_estimators=260,
             min_samples_leaf=2,
             random_state=42,
@@ -686,6 +1066,18 @@ def regression_candidates():
             random_state=42,
         ),
     }
+    if XGBRegressor is not None:
+        candidates["XGBoost Revenue Forecaster"] = XGBRegressor(
+            n_estimators=260,
+            learning_rate=0.055,
+            max_depth=4,
+            subsample=0.9,
+            colsample_bytree=0.9,
+            objective="reg:squarederror",
+            random_state=42,
+            n_jobs=-1,
+        )
+    return candidates
 
 
 def score_predictions(y_true, predictions):
@@ -782,6 +1174,22 @@ def forecast_daily_sales(df, periods=30):
     values = daily["revenue"].to_numpy(dtype=float)
     if len(values) == 0:
         return pd.DataFrame()
+
+    if Prophet is not None and len(daily) >= 10:
+        try:
+            prophet_df = daily[["date", "revenue"]].rename(columns={"date": "ds", "revenue": "y"})
+            prophet_model = Prophet(daily_seasonality=True, weekly_seasonality=True, yearly_seasonality=False)
+            prophet_model.fit(prophet_df)
+            future = prophet_model.make_future_dataframe(periods=periods, freq="D")
+            prophet_forecast = prophet_model.predict(future).tail(periods)
+            forecast_chart = prophet_forecast[["ds", "yhat"]].rename(columns={"ds": "date", "yhat": "forecast"})
+            forecast_chart["forecast"] = forecast_chart["forecast"].clip(lower=0)
+            forecast_chart["revenue"] = np.nan
+            actual_chart = daily.tail(45).copy()
+            actual_chart["forecast"] = np.nan
+            return pd.concat([actual_chart, forecast_chart], ignore_index=True)
+        except Exception:
+            pass
 
     avg7 = np.mean(values[-7:]) if len(values) >= 7 else np.mean(values)
     avg14 = np.mean(values[-14:]) if len(values) >= 14 else avg7
@@ -1202,7 +1610,7 @@ Current recommendations:
 """.strip()
 
 
-def local_chatbot_answer(question, df, kpis, sentiment_pct, issues, anomalies, india_forecast, live_forecast, tn_forecast, recommendations, metrics):
+def local_chatbot_answer(question, df, kpis, sentiment_pct, issues, anomalies, india_forecast, live_forecast, tn_forecast, recommendations, metrics, crm_forecast):
     lower = question.lower()
     region_sales = df.groupby("region")["revenue"].sum().sort_values(ascending=False)
     category_sales = df.groupby("product_category")["revenue"].sum().sort_values(ascending=False)
@@ -1214,6 +1622,18 @@ def local_chatbot_answer(question, df, kpis, sentiment_pct, issues, anomalies, i
     latest_change = ((latest_revenue - previous_revenue) / max(previous_revenue, 1)) * 100
     top_issue = next((issue for issue, count in issues if count > 0), "no repeated customer issue")
     top_tn_city = tn_forecast["city_sales"].iloc[0]
+
+    if any(word in lower for word in ["quota", "commit", "committed", "best case", "pipeline coverage", "forecast health", "attainment"]):
+        categories = crm_forecast["categories"].set_index("category")["amount"].to_dict()
+        risky = crm_forecast["territories"][crm_forecast["territories"]["status"] == "At risk"]
+        risky_text = ", ".join(risky["region"].head(3).tolist()) if len(risky) else "no at-risk territory"
+        return (
+            f"For {crm_forecast['period_label']}, quota is {inr(crm_forecast['quota'])} and weighted forecast is "
+            f"{inr(crm_forecast['weighted_forecast'])}, which is {crm_forecast['attainment']:.1f}% attainment. "
+            f"Committed revenue is {inr(categories.get('Committed', 0))}, best case is {inr(categories.get('Best Case', 0))}, "
+            f"and pipeline is {inr(categories.get('Pipeline', 0))}. Pipeline coverage is {crm_forecast['pipeline_coverage']:.1f}x, "
+            f"confidence is {crm_forecast['confidence']}%, and the main territory risk is {risky_text}."
+        )
 
     if any(phrase in lower for phrase in ["live sales now", "sales now", "current second", "this hour", "current hour"]):
         return (
@@ -1264,10 +1684,10 @@ def ask_ai(question, context_text):
     groq_key = get_secret("GROQ_API_KEY")
     gemini_key = get_secret("GEMINI_API_KEY")
     prompt = f"""
-You are a practical senior business analyst inside a sales prediction dashboard.
+You are a practical senior revenue operations analyst inside a professional sales forecasting workspace.
 Answer the user's question using only the dataset context below.
 Be specific, numeric when possible, and business-friendly.
-If the question asks for a cause, explain the most likely drivers from region/category trends, anomalies, discounts, and reviews.
+If the question asks for forecast health, explain quota attainment, committed revenue, best case, pipeline coverage, territory risk, anomalies, discounts, and reviews.
 If the context is insufficient, say what is missing and give the best available answer.
 
 Dataset context:
@@ -1284,7 +1704,7 @@ User question:
             json={
                 "model": get_secret("GROQ_MODEL") or "llama-3.3-70b-versatile",
                 "messages": [
-                    {"role": "system", "content": "You answer sales analytics questions from the provided dashboard context. Never invent rows or secret keys."},
+                    {"role": "system", "content": "You answer sales forecasting and revenue operations questions from the provided dashboard context. Never invent rows, customers, or secret keys."},
                     {"role": "user", "content": prompt},
                 ],
                 "temperature": 0.35,
@@ -1307,12 +1727,12 @@ User question:
     raise RuntimeError("No AI API key configured")
 
 
-def pdf_report(summary, recommendations, kpis, metrics, india_forecast, live_forecast, tn_forecast, anomalies):
+def pdf_report(summary, recommendations, kpis, metrics, india_forecast, live_forecast, tn_forecast, crm_forecast, anomalies):
     pdf = FPDF()
     pdf.add_page()
     text_width = 180
     pdf.set_font("Helvetica", "B", 16)
-    pdf.cell(text_width, 10, "Sales Prediction AI Report", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(text_width, 10, "Sales Forecast AI Report", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.set_font("Helvetica", size=10)
     pdf.multi_cell(text_width, 6, f"Total revenue: {inr(kpis['total_revenue'])}\nTotal units: {kpis['total_units']:,.0f}\nBest region: {kpis['best_region']}\nBest category: {kpis['best_category']}")
     pdf.ln(2)
@@ -1322,7 +1742,27 @@ def pdf_report(summary, recommendations, kpis, metrics, india_forecast, live_for
     pdf.multi_cell(text_width, 6, f"Best model: {metrics['Best Model']}\nAccuracy score: {metrics['Accuracy']:.1f}%\nWAPE: {metrics['WAPE']:.1f}%\nRMSE: {metrics['RMSE']:.2f}\nMAE: {metrics['MAE']:.2f}\nR2: {metrics['R2']:.3f}")
     pdf.ln(2)
     pdf.set_font("Helvetica", "B", 12)
-    pdf.cell(text_width, 8, "Live Sales Prediction", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(text_width, 8, "CRM Forecast Center", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_font("Helvetica", size=10)
+    category_lines = "\n".join([f"{row.category}: {inr(row.amount)} weighted {inr(row.weighted_amount)}" for row in crm_forecast["categories"].itertuples()])
+    pdf.multi_cell(
+        text_width,
+        6,
+        (
+            f"Period: {crm_forecast['period_label']} ({crm_forecast['date_range']})\n"
+            f"Quota: {inr(crm_forecast['quota'])}\n"
+            f"Weighted forecast: {inr(crm_forecast['weighted_forecast'])}\n"
+            f"Closed revenue: {inr(crm_forecast['closed'])}\n"
+            f"Quota gap: {inr(crm_forecast['quota_gap'])}\n"
+            f"Attainment: {crm_forecast['attainment']:.1f}%\n"
+            f"Pipeline coverage: {crm_forecast['pipeline_coverage']:.1f}x\n"
+            f"Confidence: {crm_forecast['confidence']}%\n"
+            f"{category_lines}"
+        ),
+    )
+    pdf.ln(2)
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(text_width, 8, "Live Sales Forecast", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.set_font("Helvetica", size=10)
     pdf.multi_cell(text_width, 6, f"Today estimate: {inr(live_forecast['today_estimate'])}\nTomorrow forecast: {inr(live_forecast['tomorrow_forecast'])}\nNext 7 days: {inr(live_forecast['next_7'])}\nNext 30 days: {inr(live_forecast['next_30'])}\nConfidence: {live_forecast['confidence']}\nInsight: {live_forecast['insight']}")
     pdf.ln(2)
@@ -1387,6 +1827,263 @@ def metric_card(label, value, detail):
         """,
         unsafe_allow_html=True,
     )
+
+
+def forecast_card(label, value, detail):
+    st.markdown(
+        f"""
+        <div class="forecast-card">
+            <div class="forecast-label">{label}</div>
+            <div class="forecast-value">{value}</div>
+            <div class="forecast-detail">{detail}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def status_pill(text):
+    return f'<span class="status-pill">{text}</span>'
+
+
+def build_crm_forecast(df, live_forecast, anomalies):
+    dated = df.copy()
+    dated["date"] = pd.to_datetime(dated["date"], errors="coerce")
+    dated = dated.dropna(subset=["date"]).sort_values("date")
+    latest_date = dated["date"].max()
+    quarter = int(((latest_date.month - 1) // 3) + 1)
+    period_start = pd.Timestamp(year=latest_date.year, month=(quarter - 1) * 3 + 1, day=1)
+    period_end = period_start + pd.offsets.QuarterEnd(0)
+    previous_start = period_start - pd.DateOffset(months=3)
+    previous_end = period_start - pd.Timedelta(days=1)
+
+    current_rows = dated[(dated["date"] >= period_start) & (dated["date"] <= period_end)]
+    previous_rows = dated[(dated["date"] >= previous_start) & (dated["date"] <= previous_end)]
+    closed = float(current_rows["revenue"].sum())
+    previous_closed = float(previous_rows["revenue"].sum())
+
+    recent_start = latest_date - pd.Timedelta(days=30)
+    recent_rows = dated[(dated["date"] >= recent_start) & (dated["date"] <= latest_date)]
+    daily_average = float(recent_rows["revenue"].sum()) / max(1, min(30, max(1, len(recent_rows["date"].dt.date.unique()))))
+    remaining_days = max(0, int((period_end - latest_date).days))
+    pace_forecast = daily_average * remaining_days
+    forecastable = max(float(live_forecast.get("next_30", 0)), pace_forecast, daily_average * 30)
+
+    committed = forecastable * 0.34
+    best_case = forecastable * 0.29
+    pipeline = forecastable * 0.37
+    omitted = forecastable * (0.07 if len(anomalies) else 0.03)
+
+    categories = pd.DataFrame(
+        [
+            {"category": "Closed", "amount": closed, "weight": 1.00, "description": "Booked revenue in the period"},
+            {"category": "Committed", "amount": committed, "weight": 0.90, "description": "High-confidence revenue"},
+            {"category": "Best Case", "amount": best_case, "weight": 0.55, "description": "Upside revenue with close potential"},
+            {"category": "Pipeline", "amount": pipeline, "weight": 0.25, "description": "Early-stage forecast pipeline"},
+            {"category": "Omitted", "amount": omitted, "weight": 0.00, "description": "Excluded from the forecast"},
+        ]
+    )
+    categories["weighted_amount"] = categories["amount"] * categories["weight"]
+    weighted_forecast = float(categories["weighted_amount"].sum())
+    quota = max(previous_closed * 1.12, closed * 1.18, weighted_forecast * 1.08, 1)
+    quota_gap = max(0, quota - weighted_forecast)
+    attainment = min(160, max(0, weighted_forecast / quota * 100))
+    pipeline_coverage = min(9.9, (committed + best_case + pipeline) / max(quota_gap, quota * 0.1))
+    confidence = int(min(94, max(52, 58 + attainment * 0.18 + min(pipeline_coverage, 4) * 5 - (omitted / quota * 100))))
+
+    region_current = current_rows.groupby("region", as_index=False)["revenue"].sum()
+    if region_current.empty:
+        region_current = dated.groupby("region", as_index=False)["revenue"].sum()
+    region_previous = previous_rows.groupby("region", as_index=False)["revenue"].sum().rename(columns={"revenue": "previous_revenue"})
+    territories = region_current.merge(region_previous, on="region", how="left").fillna(0)
+    total_region_closed = max(1, float(territories["revenue"].sum()))
+    territories["share"] = territories["revenue"] / total_region_closed
+    territories["manager"] = [FORECAST_MANAGERS[index % len(FORECAST_MANAGERS)] for index in range(len(territories))]
+    territories["quota"] = np.maximum.reduce(
+        [
+            territories["previous_revenue"].to_numpy() * 1.12,
+            territories["revenue"].to_numpy() * 1.2,
+            quota * territories["share"].to_numpy(),
+        ]
+    )
+    territories["committed"] = committed * territories["share"]
+    territories["best_case"] = best_case * territories["share"]
+    territories["pipeline"] = pipeline * territories["share"]
+    territories["forecast"] = territories["revenue"] + territories["committed"] * 0.9 + territories["best_case"] * 0.55 + territories["pipeline"] * 0.25
+    territories["attainment"] = territories["forecast"] / territories["quota"].replace(0, 1) * 100
+    territories["status"] = np.where(
+        territories["attainment"] >= 100,
+        "On track",
+        np.where(territories["attainment"] >= 82, "Needs commit", "At risk"),
+    )
+    territories = territories.sort_values("forecast", ascending=False)
+
+    stages = pd.DataFrame(
+        [
+            {"stage": "Qualification", "probability": 15, "amount": pipeline * 0.42},
+            {"stage": "Needs Analysis", "probability": 30, "amount": pipeline * 0.28},
+            {"stage": "Proposal", "probability": 45, "amount": best_case * 0.44},
+            {"stage": "Negotiation", "probability": 65, "amount": best_case * 0.56},
+            {"stage": "Committed", "probability": 85, "amount": committed},
+            {"stage": "Closed Won", "probability": 100, "amount": closed},
+        ]
+    )
+    stages["weighted_amount"] = stages["amount"] * stages["probability"] / 100
+
+    risk_signals = [
+        f"{len(anomalies)} anomaly alert(s) need review before forecast commit." if len(anomalies) else "No major revenue anomaly is affecting the active forecast.",
+        "Pipeline coverage is thin against quota gap." if pipeline_coverage < 1.5 else "Pipeline coverage is healthy for manager review.",
+        f"{inr(quota_gap)} remains before weighted forecast reaches quota." if attainment < 100 else "Weighted forecast is above quota for the selected period.",
+    ]
+
+    return {
+        "period_label": f"Q{quarter} FY{latest_date.year}",
+        "date_range": f"{period_start:%d %b %Y} - {period_end:%d %b %Y}",
+        "quota": quota,
+        "closed": closed,
+        "weighted_forecast": weighted_forecast,
+        "quota_gap": quota_gap,
+        "attainment": attainment,
+        "pipeline_coverage": pipeline_coverage,
+        "confidence": confidence,
+        "categories": categories,
+        "territories": territories,
+        "stages": stages,
+        "risk_signals": risk_signals,
+    }
+
+
+def render_forecast_center(forecast):
+    st.subheader("Forecast Center")
+    st.caption("Professional CRM-style sales forecasting with quota, commit, best case, pipeline, and territory rollups.")
+
+    st.markdown(
+        f"""
+        <div class="forecast-panel">
+            {status_pill(forecast["period_label"])} &nbsp; {status_pill(forecast["date_range"])}
+            <h3 style="margin:.75rem 0 .2rem;color:#0F172A;">Quota, commit, and pipeline coverage</h3>
+            <p style="margin:0;color:#475569;font-weight:600;">Built from uploaded revenue history, current-period closed revenue, recent pace, anomaly risk, and next-30-day forecast signals.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    kpi_cols = st.columns(5)
+    kpis = [
+        ("Quota", inr(forecast["quota"]), "Target for selected period"),
+        ("Weighted Forecast", inr(forecast["weighted_forecast"]), f"{forecast['attainment']:.0f}% of quota"),
+        ("Closed Revenue", inr(forecast["closed"]), "Booked revenue in period"),
+        ("Quota Gap", inr(forecast["quota_gap"]), f"{forecast['pipeline_coverage']:.1f}x pipeline coverage"),
+        ("Confidence", f"{forecast['confidence']}%", "Pace + coverage + risk"),
+    ]
+    for col, (label, value, detail) in zip(kpi_cols, kpis):
+        with col:
+            forecast_card(label, value, detail)
+
+    left, right = st.columns([1.1, 0.9])
+    with left:
+        category_df = forecast["categories"].copy()
+        fig = px.bar(
+            category_df,
+            x="amount",
+            y="category",
+            orientation="h",
+            color="category",
+            text=category_df["amount"].map(inr),
+            title="Forecast Categories",
+            color_discrete_map={
+                "Closed": "#0F766E",
+                "Committed": "#2563EB",
+                "Best Case": "#F97316",
+                "Pipeline": "#0F172A",
+                "Omitted": "#94A3B8",
+            },
+        )
+        fig.update_layout(showlegend=False, height=380, margin=dict(l=10, r=10, t=50, b=10))
+        fig.update_traces(textposition="outside", cliponaxis=False)
+        st.plotly_chart(fig, width="stretch")
+    with right:
+        stage_df = forecast["stages"].copy()
+        fig = px.bar(
+            stage_df,
+            x="stage",
+            y="weighted_amount",
+            text=stage_df["weighted_amount"].map(inr),
+            title="Stage Probability Weighted Revenue",
+            color="probability",
+            color_continuous_scale="Blues",
+        )
+        fig.update_layout(height=380, margin=dict(l=10, r=10, t=50, b=10))
+        st.plotly_chart(fig, width="stretch")
+
+    st.markdown("### Territory Forecast Rollup")
+    territory_view = forecast["territories"][
+        ["region", "manager", "quota", "revenue", "committed", "best_case", "pipeline", "forecast", "attainment", "status"]
+    ].rename(
+        columns={
+            "region": "Territory",
+            "manager": "Manager",
+            "quota": "Quota",
+            "revenue": "Closed",
+            "committed": "Committed",
+            "best_case": "Best Case",
+            "pipeline": "Pipeline",
+            "forecast": "Weighted Forecast",
+            "attainment": "Attainment %",
+            "status": "Status",
+        }
+    )
+    st.dataframe(
+        territory_view.style.format(
+            {
+                "Quota": inr,
+                "Closed": inr,
+                "Committed": inr,
+                "Best Case": inr,
+                "Pipeline": inr,
+                "Weighted Forecast": inr,
+                "Attainment %": "{:.1f}%",
+            }
+        ),
+        width="stretch",
+        hide_index=True,
+    )
+
+    risk_cols = st.columns(3)
+    for col, signal in zip(risk_cols, forecast["risk_signals"]):
+        with col:
+            st.info(signal)
+
+
+def render_project_assets(compact=False):
+    if compact:
+        st.markdown("### Project Links")
+    else:
+        st.subheader("Project Assets")
+        st.caption("Use these assets to inspect the preprocessing workflow, explain the project, and review the source repository.")
+
+    asset_cols = st.columns(3)
+    with asset_cols[0]:
+        forecast_card("Google Colab", "Preprocess Dataset", "Open the notebook, clean sales data, and export cleaned_sales_data.csv.")
+        st.link_button("Open Colab Notebook", COLAB_URL, width="stretch")
+    with asset_cols[1]:
+        forecast_card("PowerPoint", "Project PPT", "Editable deck explaining the architecture, forecast center, Colab workflow, and Groq AI layer.")
+        st.link_button("Open PPT From GitHub", PPT_URL, width="stretch")
+        if os.path.exists(PPT_ASSET_PATH):
+            with open(PPT_ASSET_PATH, "rb") as ppt_file:
+                st.download_button(
+                    "Download PPT",
+                    ppt_file.read(),
+                    "Sales_Forecast_AI_Project_Deck.pptx",
+                    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                    width="stretch",
+                )
+    with asset_cols[2]:
+        forecast_card("GitHub", "Source Repo", "Streamlit app, Colab notebook, sample data, requirements, and launch assets.")
+        st.link_button("Open GitHub Repo", REPO_URL, width="stretch")
+
+    if not compact:
+        st.info("After pushing the latest files to GitHub, the Colab and PPT links above will resolve from the main branch.")
 
 
 @st.fragment(run_every="1s")
@@ -1461,213 +2158,855 @@ def render_tamil_nadu_live_dashboard(df):
         st.dataframe(forecast["city_sales"], width="stretch")
 
 
+
 st.markdown(
     """
-    <div class="hero">
-        <h1>Sales Prediction System with NLP Insights</h1>
-        <p>Upload almost any sales CSV, map columns flexibly, simulate Tamil Nadu 2026 e-commerce sales live, chat with AI, and export portfolio-ready reports.</p>
-    </div>
+    <style>
+    .sidebar-brand {
+        margin-bottom: 1rem;
+    }
+    .sidebar-brand h2 {
+        margin: 0;
+        color: #F8FAFC;
+        font-size: 1.32rem;
+    }
+    .sidebar-brand p {
+        margin: .35rem 0 0;
+        color: rgba(255, 255, 255, .72);
+        font-size: .9rem;
+    }
+    .sidebar-user {
+        background: rgba(255, 255, 255, .08);
+        border: 1px solid rgba(255, 255, 255, .12);
+        border-radius: 8px;
+        padding: .8rem .9rem;
+        margin-bottom: .9rem;
+    }
+    .sidebar-user strong {
+        display: block;
+        color: #FFFFFF;
+        margin-bottom: .18rem;
+    }
+    .sidebar-user span {
+        display: block;
+        color: rgba(255, 255, 255, .72);
+        font-size: .82rem;
+        line-height: 1.4;
+    }
+    .teamspace-line {
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+        color: #FFFFFF;
+        font-weight: 700;
+        margin: 1rem 0 .7rem;
+    }
+    .teamspace-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.9rem;
+        height: 1.9rem;
+        border-radius: 6px;
+        background: #0FB981;
+        color: #FFFFFF;
+        font-size: .82rem;
+        font-weight: 800;
+    }
+    .nav-link {
+        display: block;
+        padding: .72rem .85rem;
+        border-radius: 8px;
+        margin: .2rem 0;
+        color: rgba(255, 255, 255, .86);
+        text-decoration: none;
+        font-weight: 600;
+        border: 1px solid transparent;
+    }
+    .nav-link:hover {
+        background: rgba(255, 255, 255, .08);
+        color: #FFFFFF;
+    }
+    .nav-link.active {
+        background: #3C5180;
+        color: #FFFFFF;
+        border-color: rgba(255, 255, 255, .08);
+    }
+    section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
+        margin: 0;
+    }
+    section[data-testid="stSidebar"] a.nav-link,
+    section[data-testid="stSidebar"] a.nav-link:visited,
+    section[data-testid="stSidebar"] a.nav-link:hover,
+    section[data-testid="stSidebar"] a.nav-link:active {
+        text-decoration: none !important;
+    }
+    .nav-caption {
+        color: rgba(255, 255, 255, .56);
+        font-size: .74rem;
+        font-weight: 700;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+        margin: 1rem 0 .35rem;
+    }
+    .page-band {
+        background: linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+        border: 1px solid #D7DFEC;
+        border-radius: 8px;
+        padding: 1rem 1.15rem;
+        margin-bottom: 1rem;
+    }
+    .page-band h1 {
+        margin: 0;
+        color: #091B33;
+        font-size: 1.5rem;
+    }
+    .page-band p {
+        margin: .4rem 0 0;
+        color: #5F6F86;
+        font-weight: 600;
+    }
+    .csv-upload-card {
+        max-width: 740px;
+        margin: 1.25rem auto 1rem;
+        padding: 1.5rem;
+        border: 1px solid #DDE6F2;
+        border-radius: 8px;
+        background: #FFFFFF;
+        box-shadow: 0 18px 44px rgba(25, 43, 77, .08);
+    }
+    .csv-upload-card h2 {
+        margin: 0 0 1rem;
+        color: #111827;
+        font-size: 1.22rem;
+    }
+    .csv-upload-card .upload-note {
+        margin: .9rem 0 0;
+        color: #6B7280;
+        font-size: .88rem;
+    }
+    .csv-upload-card .upload-note strong {
+        color: #111827;
+    }
+    div[data-testid="stFileUploader"] section {
+        min-height: 190px;
+        border: 1.5px dashed #20C6D8 !important;
+        border-radius: 6px !important;
+        background: #F8FCFF !important;
+    }
+    div[data-testid="stFileUploader"] small,
+    div[data-testid="stFileUploader"] [data-testid="stFileUploaderFileSize"],
+    div[data-testid="stFileUploader"] [data-testid="stFileUploaderDropzoneInstructions"] small,
+    div[data-testid="stFileUploaderDropzoneInstructions"] span:not(:first-child) {
+        display: none !important;
+    }
+    .process-stage {
+        padding: .75rem .9rem;
+        border: 1px solid #D7DFEC;
+        border-radius: 8px;
+        background: #FFFFFF;
+        color: #091B33;
+        font-weight: 700;
+        margin-bottom: .55rem;
+    }
+    .assistant-shell {
+        min-height: 620px;
+        border: 1px solid #D7DFEC;
+        border-radius: 8px;
+        background:
+            linear-gradient(140deg, rgba(49, 91, 232, .08), rgba(15, 185, 129, .07)),
+            #FFFFFF;
+        padding: 1.4rem;
+        margin-top: 1rem;
+    }
+    .assistant-topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid #D7DFEC;
+        padding-bottom: .95rem;
+        color: #091B33;
+    }
+    .assistant-brand {
+        display: flex;
+        align-items: center;
+        gap: .7rem;
+        font-weight: 800;
+    }
+    .assistant-mark {
+        width: 2.1rem;
+        height: 2.1rem;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #315BE8;
+        color: #FFFFFF;
+        font-size: .82rem;
+        font-weight: 900;
+    }
+    .assistant-online {
+        border: 1px solid rgba(15, 185, 129, .35);
+        background: rgba(15, 185, 129, .1);
+        color: #087A58;
+        border-radius: 999px;
+        padding: .35rem .85rem;
+        font-size: .72rem;
+        font-weight: 800;
+        letter-spacing: .08em;
+    }
+    .assistant-hero {
+        text-align: center;
+        max-width: 720px;
+        margin: 4.5rem auto 2rem;
+    }
+    .assistant-avatar {
+        width: 4.8rem;
+        height: 4.8rem;
+        border-radius: 50%;
+        margin: 0 auto 1.4rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid rgba(49, 91, 232, .35);
+        background: #F8FBFF;
+        color: #315BE8;
+        box-shadow: 0 12px 32px rgba(49, 91, 232, .18);
+        font-size: 1.15rem;
+        font-weight: 900;
+    }
+    .assistant-hero h1 {
+        margin: 0;
+        color: #091B33;
+        font-size: 2.15rem;
+        line-height: 1.15;
+    }
+    .assistant-hero p {
+        margin: .8rem auto 0;
+        max-width: 560px;
+        color: #5F6F86;
+        font-size: 1rem;
+        line-height: 1.7;
+        font-weight: 600;
+    }
+    .assistant-divider {
+        border-top: 1px solid #D7DFEC;
+        margin: 2.2rem 0 1.1rem;
+    }
+    .assistant-chat-card {
+        max-width: 920px;
+        margin: 0 auto;
+        padding: 1rem;
+        border: 1px solid #D7DFEC;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, .86);
+    }
+    </style>
     """,
     unsafe_allow_html=True,
 )
 
-with st.sidebar:
-    st.title("Sales AI")
+
+def render_page_band(title, description):
+    st.markdown(
+        f"""
+        <div class="page-band">
+            <h1>{title}</h1>
+            <p>{description}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_processing_pipeline(summary, dataset_name):
+    render_page_band(
+        "Data Processing",
+        "Drag and drop a dataset, then the platform maps fields, cleans records, engineers forecasting features, and prepares a model-ready output automatically.",
+    )
+    metric_cols = st.columns(5)
+    pipeline_metrics = [
+        ("Source Rows", f"{summary['raw_rows']:,}", dataset_name),
+        ("Processed Rows", f"{summary['clean_rows']:,}", "Ready for forecast modeling"),
+        ("Mapped Fields", str(summary["mapped_fields"]), "Detected or confirmed"),
+        ("Engineered Features", str(summary["engineered_features"]), "Lag, rolling, and calendar signals"),
+        ("Missing Cells Fixed", str(max(summary["missing_before"] - summary["missing_after"], 0)), "Recovered during cleaning"),
+    ]
+    for col, (label, value, detail) in zip(metric_cols, pipeline_metrics):
+        with col:
+            metric_card(label, value, detail)
+
+    st.markdown("### Processing Workflow")
+    workflow_cols = st.columns(4)
+    workflow_steps = [
+        ("1. Ingest", "CSV upload via drag and drop or click to upload"),
+        ("2. Map", "Date, region, category, units, revenue, discount, and reviews"),
+        ("3. Clean", "Parse dates, fill gaps, remove duplicates, normalize numerics"),
+        ("4. Engineer", "Create lag, rolling, calendar, weekend, and quarter features"),
+    ]
+    for col, (title, detail) in zip(workflow_cols, workflow_steps):
+        with col:
+            forecast_card(title, "Completed", detail)
+
+    st.info(
+        f"Processed date range: {summary['date_start']} to {summary['date_end']}. "
+        f"Duplicate rows removed: {summary['duplicates_removed']}. "
+        f"Recognized raw date values: {summary['raw_date_coverage']:,}."
+    )
+
+
+PROCESSING_STAGES = [
+    "Uploading",
+    "Cleaning",
+    "Preprocessing",
+    "EDA",
+    "Visualization",
+    "Training",
+    "Prediction",
+    "Report",
+    "Completed",
+]
+
+
+def build_future_predictions(live_forecast, forecast_chart):
+    rows = [
+        {"horizon": "Next day", "date": "", "predicted_revenue": live_forecast["tomorrow_forecast"]},
+        {"horizon": "Next 7 days", "date": "", "predicted_revenue": live_forecast["next_7"]},
+        {"horizon": "Next 30 days", "date": "", "predicted_revenue": live_forecast["next_30"]},
+    ]
+    daily_future = forecast_chart[forecast_chart["forecast"].notna()][["date", "forecast"]].copy()
+    for row in daily_future.head(30).itertuples():
+        rows.append({"horizon": "Daily forecast", "date": row.date.date().isoformat(), "predicted_revenue": float(row.forecast)})
+    return pd.DataFrame(rows)
+
+
+def generate_colab_notebook():
+    code = r'''
+!pip -q install pandas numpy matplotlib seaborn plotly scikit-learn xgboost prophet fpdf
+
+import warnings
+warnings.filterwarnings("ignore")
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import plotly.express as px
+from google.colab import files
+from sklearn.compose import ColumnTransformer
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder
+from xgboost import XGBRegressor
+
+try:
+    from prophet import Prophet
+except Exception:
+    Prophet = None
+
+uploaded = files.upload()
+file_name = next(iter(uploaded))
+raw_df = pd.read_csv(file_name, engine="python", on_bad_lines="skip")
+raw_df.columns = [str(col).strip() for col in raw_df.columns]
+display(raw_df.head())
+
+ALIASES = {
+    "date": ["date", "order_date", "sale_date", "created_at", "timestamp", "transaction_date", "invoice_date", "purchase_date"],
+    "region": ["region", "state", "location", "city", "area", "district", "country", "market", "zone"],
+    "product_category": ["product_category", "category", "product", "item", "product_type", "product_name", "sku", "department", "sub_category"],
+    "units_sold": ["units_sold", "quantity", "qty", "units", "sales_count", "items_sold", "order_qty", "count"],
+    "revenue": ["revenue", "sales", "amount", "total_price", "net_sales", "gross_sales", "order_value", "gmv", "subtotal"],
+    "unit_price": ["unit_price", "selling_price", "price", "rate", "mrp", "item_price", "list_price"],
+    "discount_pct": ["discount_pct", "discount", "discount_percent", "offer", "promo_discount", "coupon_discount"],
+    "customer_reviews": ["customer_reviews", "review", "feedback", "comment", "customer_text", "customer_review", "remarks", "rating_text"],
+}
+
+def normalize(name):
+    return str(name).strip().lower().replace(" ", "_").replace("-", "_")
+
+def auto_map(df):
+    normalized = {normalize(col): col for col in df.columns}
+    return {
+        field: next((normalized[normalize(alias)] for alias in aliases if normalize(alias) in normalized), None)
+        for field, aliases in ALIASES.items()
+    }
+
+mapping = auto_map(raw_df)
+mapping
+
+def preprocess(df, mapping):
+    source = df.drop_duplicates().copy()
+    clean = pd.DataFrame(index=source.index)
+    if mapping.get("date"):
+        clean["date"] = pd.to_datetime(source[mapping["date"]], errors="coerce")
+        clean["date"] = clean["date"].fillna(clean["date"].dropna().min() if clean["date"].notna().any() else pd.Timestamp("2026-01-01"))
+    else:
+        clean["date"] = pd.date_range("2026-01-01", periods=len(clean), freq="D")
+    clean["region"] = source[mapping["region"]].fillna("Overall").astype(str).str.strip() if mapping.get("region") else "Overall"
+    clean["product_category"] = source[mapping["product_category"]].fillna("General").astype(str).str.strip() if mapping.get("product_category") else "General"
+    clean["customer_reviews"] = source[mapping["customer_reviews"]].fillna("").astype(str) if mapping.get("customer_reviews") else ""
+    clean["units_sold"] = pd.to_numeric(source[mapping["units_sold"]], errors="coerce") if mapping.get("units_sold") else np.nan
+    clean["revenue"] = pd.to_numeric(source[mapping["revenue"]], errors="coerce") if mapping.get("revenue") else np.nan
+    if clean["revenue"].isna().all() and mapping.get("unit_price"):
+        unit_price = pd.to_numeric(source[mapping["unit_price"]], errors="coerce")
+        clean["revenue"] = clean["units_sold"].fillna(1) * unit_price
+    if clean["units_sold"].isna().all():
+        clean["units_sold"] = np.where(clean["revenue"].notna(), np.maximum(clean["revenue"] / 100, 1), 1)
+    if clean["revenue"].isna().all():
+        clean["revenue"] = np.maximum(clean["units_sold"], 1) * 100
+    clean["discount_pct"] = pd.to_numeric(source[mapping["discount_pct"]], errors="coerce") if mapping.get("discount_pct") else 0
+    for col in ["units_sold", "revenue", "discount_pct"]:
+        clean[col] = pd.to_numeric(clean[col], errors="coerce").fillna(clean[col].median() if clean[col].notna().any() else 0)
+    clean = clean.sort_values("date")
+    clean["month"] = clean["date"].dt.month
+    clean["year"] = clean["date"].dt.year
+    clean["day_of_week"] = clean["date"].dt.dayofweek
+    clean["day_of_month"] = clean["date"].dt.day
+    clean["quarter"] = clean["date"].dt.quarter
+    clean["is_weekend"] = clean["day_of_week"].isin([5, 6]).astype(int)
+    clean["lag_7"] = clean["revenue"].shift(7)
+    clean["lag_30"] = clean["revenue"].shift(30)
+    clean["rolling_mean_7"] = clean["revenue"].rolling(7, min_periods=1).mean().shift(1)
+    clean["rolling_mean_30"] = clean["revenue"].rolling(30, min_periods=1).mean().shift(1)
+    clean["rolling_std_7"] = clean["revenue"].rolling(7, min_periods=2).std().shift(1)
+    for col in ["lag_7", "lag_30", "rolling_mean_7", "rolling_mean_30"]:
+        clean[col] = clean[col].fillna(clean["revenue"].expanding().mean()).fillna(clean["revenue"].mean())
+    clean["rolling_std_7"] = clean["rolling_std_7"].fillna(clean["rolling_std_7"].median() if clean["rolling_std_7"].notna().any() else 0)
+    return clean.reset_index(drop=True)
+
+clean_df = preprocess(raw_df, mapping)
+display(clean_df.head())
+
+daily = clean_df.groupby("date", as_index=False).agg(revenue=("revenue", "sum"), units_sold=("units_sold", "sum"))
+display(daily.describe())
+px.line(daily, x="date", y="revenue", title="Daily Revenue").show()
+px.bar(clean_df.groupby("region", as_index=False)["revenue"].sum(), x="region", y="revenue", title="Revenue by Region").show()
+px.bar(clean_df.groupby("product_category", as_index=False)["revenue"].sum(), x="product_category", y="revenue", title="Revenue by Product").show()
+
+features = [
+    "units_sold", "discount_pct", "month", "year", "day_of_week", "day_of_month", "quarter",
+    "is_weekend", "lag_7", "lag_30", "rolling_mean_7", "rolling_mean_30", "rolling_std_7",
+    "region", "product_category",
+]
+x = clean_df[features]
+y = clean_df["revenue"]
+test_size = 0.2 if len(clean_df) >= 20 else 0.3
+x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=test_size, shuffle=False)
+preprocessor = ColumnTransformer([
+    ("num", "passthrough", [col for col in features if col not in ["region", "product_category"]]),
+    ("cat", OneHotEncoder(handle_unknown="ignore", sparse_output=False), ["region", "product_category"]),
+])
+models = {
+    "RandomForest": RandomForestRegressor(n_estimators=260, min_samples_leaf=2, random_state=42, n_jobs=-1),
+    "XGBoost": XGBRegressor(n_estimators=260, learning_rate=.055, max_depth=4, objective="reg:squarederror", random_state=42, n_jobs=-1),
+}
+leaderboard = []
+trained = {}
+for name, model in models.items():
+    pipe = Pipeline([("preprocess", preprocessor), ("model", model)])
+    pipe.fit(x_train, y_train)
+    pred = pipe.predict(x_test)
+    rmse = float(np.sqrt(mean_squared_error(y_test, pred)))
+    mae = float(mean_absolute_error(y_test, pred))
+    r2 = float(r2_score(y_test, pred)) if len(y_test) > 1 else 0
+    leaderboard.append({"model": name, "RMSE": rmse, "MAE": mae, "R2": r2})
+    trained[name] = pipe
+leaderboard = pd.DataFrame(leaderboard).sort_values("RMSE")
+display(leaderboard)
+best_model = trained[leaderboard.iloc[0]["model"]]
+
+avg7 = daily["revenue"].tail(7).mean()
+avg30 = daily["revenue"].tail(30).mean() if len(daily) >= 30 else avg7
+trend = np.polyfit(np.arange(min(len(daily), 30)), daily["revenue"].tail(30), 1)[0] if len(daily) > 2 else 0
+future_rows = []
+last_date = daily["date"].max()
+for day in range(1, 31):
+    forecast_date = last_date + pd.Timedelta(days=day)
+    estimate = max(0, avg7 * .65 + avg30 * .35 + trend * day)
+    future_rows.append({"date": forecast_date, "predicted_revenue": estimate})
+predictions = pd.DataFrame(future_rows)
+display(predictions.head())
+px.line(predictions, x="date", y="predicted_revenue", title="Future Sales Prediction").show()
+
+if Prophet is not None and mapping.get("date"):
+    prophet_df = daily.rename(columns={"date": "ds", "revenue": "y"})
+    prophet = Prophet()
+    prophet.fit(prophet_df)
+    prophet_future = prophet.make_future_dataframe(periods=30)
+    prophet_forecast = prophet.predict(prophet_future)
+    prophet.plot(prophet_forecast)
+    plt.show()
+
+clean_df.to_csv("processed_sales_dataset.csv", index=False)
+predictions.to_csv("future_sales_predictions.csv", index=False)
+files.download("processed_sales_dataset.csv")
+files.download("future_sales_predictions.csv")
+'''
+    notebook = {
+        "cells": [
+            {"cell_type": "markdown", "metadata": {}, "source": ["# Sales Forecast AI - Colab Processing Notebook\n", "Upload a messy CSV and run the full preprocessing, EDA, ML, and prediction workflow.\n"]},
+            {"cell_type": "code", "execution_count": None, "metadata": {}, "outputs": [], "source": code.splitlines(keepends=True)},
+        ],
+        "metadata": {
+            "kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"},
+            "language_info": {"name": "python", "version": "3.x"},
+        },
+        "nbformat": 4,
+        "nbformat_minor": 5,
+    }
+    return json.dumps(notebook, indent=2).encode("utf-8")
+
+
+def process_uploaded_sales_dataset(raw_df, dataset_name, column_mapping):
+    progress = st.progress(0, text=PROCESSING_STAGES[0])
+    stage_box = st.empty()
+
+    def set_stage(index):
+        progress.progress((index + 1) / len(PROCESSING_STAGES), text=PROCESSING_STAGES[index])
+        stage_box.markdown(f"<div class='process-stage'>{PROCESSING_STAGES[index]}</div>", unsafe_allow_html=True)
+
+    set_stage(0)
+    set_stage(1)
+    clean_df = preprocess_data(raw_df, column_mapping)
+    if len(clean_df) < 2:
+        raise ValueError("The dataset needs at least 2 usable rows after cleaning.")
+
+    set_stage(2)
+    processing_summary = build_processing_summary(raw_df, clean_df, column_mapping)
+
+    set_stage(3)
+    sentiment_pct, keywords, issues = analyze_reviews(clean_df)
+    anomalies = detect_anomalies(clean_df)
+    region_sales = clean_df.groupby("region", as_index=False)["revenue"].sum().sort_values("revenue", ascending=False)
+    category_sales = clean_df.groupby("product_category", as_index=False)["revenue"].sum().sort_values("revenue", ascending=False)
+
+    set_stage(4)
+    forecast_chart = forecast_daily_sales(clean_df)
+    live_forecast = live_sales_prediction(clean_df)
+    india_forecast = india_2026_forecast(clean_df)
+    tn_forecast = tamil_nadu_live_prediction(clean_df)
+
+    set_stage(5)
+    model, metrics, validation, leaderboard = build_model(clean_df)
+
+    set_stage(6)
+    crm_forecast = build_crm_forecast(clean_df, live_forecast, anomalies)
+    predictions_df = build_future_predictions(live_forecast, forecast_chart)
+    default_pred_date = date(2026, 5, 5)
+    default_region = sorted(clean_df["region"].unique())[0]
+    default_product = sorted(clean_df["product_category"].unique())[0]
+    default_units = float(clean_df["units_sold"].median())
+    default_discount = float(clean_df["discount_pct"].median())
+    default_predicted_revenue, _default_feature_row = predict_revenue_scenario(
+        model,
+        clean_df,
+        default_pred_date,
+        default_region,
+        default_product,
+        default_units,
+        default_discount,
+    )
+    default_prediction_result = {
+        "date": default_pred_date,
+        "region": default_region,
+        "product_category": default_product,
+        "units_sold": default_units,
+        "discount_pct": default_discount,
+        "predicted_revenue": default_predicted_revenue,
+    }
+
+    set_stage(7)
+    kpis = {
+        "total_revenue": clean_df["revenue"].sum(),
+        "total_units": clean_df["units_sold"].sum(),
+        "best_region": region_sales.iloc[0]["region"],
+        "best_region_revenue": region_sales.iloc[0]["revenue"],
+        "best_category": category_sales.iloc[0]["product_category"],
+    }
+    summary, recommendations = business_summary(clean_df, kpis, sentiment_pct, issues, anomalies, india_forecast, tn_forecast)
+    ai_context_text = build_ai_context(clean_df, kpis, sentiment_pct, keywords, issues, anomalies, india_forecast, live_forecast, tn_forecast, recommendations, metrics)
+    ai_context_text += f"""
+
+CRM forecast center:
+Period: {crm_forecast['period_label']} ({crm_forecast['date_range']})
+Quota: {inr(crm_forecast['quota'])}
+Weighted forecast: {inr(crm_forecast['weighted_forecast'])}
+Closed revenue: {inr(crm_forecast['closed'])}
+Quota gap: {inr(crm_forecast['quota_gap'])}
+Attainment: {crm_forecast['attainment']:.1f}%
+Pipeline coverage: {crm_forecast['pipeline_coverage']:.1f}x
+Forecast confidence: {crm_forecast['confidence']}%
+Forecast categories: {', '.join([f"{row.category}: {inr(row.amount)}" for row in crm_forecast['categories'].itertuples()])}
+Territory statuses: {', '.join([f"{row.region}: {row.status}" for row in crm_forecast['territories'].itertuples()])}
+"""
+
+    set_stage(8)
+    return {
+        "raw_df": raw_df,
+        "dataset_name": dataset_name,
+        "column_mapping": column_mapping,
+        "clean_df": clean_df,
+        "model": model,
+        "metrics": metrics,
+        "validation": validation,
+        "leaderboard": leaderboard,
+        "forecast_chart": forecast_chart,
+        "live_forecast": live_forecast,
+        "india_forecast": india_forecast,
+        "tn_forecast": tn_forecast,
+        "sentiment_pct": sentiment_pct,
+        "keywords": keywords,
+        "issues": issues,
+        "anomalies": anomalies,
+        "crm_forecast": crm_forecast,
+        "region_sales": region_sales,
+        "category_sales": category_sales,
+        "kpis": kpis,
+        "summary": summary,
+        "recommendations": recommendations,
+        "ai_context_text": ai_context_text,
+        "processing_summary": processing_summary,
+        "default_prediction_result": default_prediction_result,
+        "predictions_df": predictions_df,
+    }
+
+
+def render_processed_downloads(context):
+    report_bytes = pdf_report(
+        context["summary"],
+        context["recommendations"],
+        context["kpis"],
+        context["metrics"],
+        context["india_forecast"],
+        context["live_forecast"],
+        context["tn_forecast"],
+        context["crm_forecast"],
+        context["anomalies"],
+    )
+    download_cols = st.columns(4)
+    with download_cols[0]:
+        st.download_button("Download processed dataset CSV", context["clean_df"].to_csv(index=False).encode("utf-8"), "processed_sales_dataset.csv", "text/csv", width="stretch", key="download_processed_dataset")
+    with download_cols[1]:
+        st.download_button("Download predictions CSV", context["predictions_df"].to_csv(index=False).encode("utf-8"), "future_sales_predictions.csv", "text/csv", width="stretch", key="download_predictions_csv")
+    with download_cols[2]:
+        st.download_button("Download summary report PDF", report_bytes, "sales_forecast_summary_report.pdf", "application/pdf", width="stretch", key="download_summary_pdf")
+    with download_cols[3]:
+        st.download_button("Download Google Colab Notebook", generate_colab_notebook(), "sales_forecast_colab_pipeline.ipynb", "application/x-ipynb+json", width="stretch", key="download_processed_colab")
+
+
+def render_csv_upload_processor():
     st.markdown(
         """
-        <div class="upload-dropzone">
-            <b>Drag and drop your sales dataset</b>
+        <div class="csv-upload-card">
+            <h2>Import Sales Dataset</h2>
+            <div class="upload-note">Drag and Drop file here or <strong>Click to upload</strong></div>
         </div>
         """,
         unsafe_allow_html=True,
     )
     uploaded_file = st.file_uploader(
-        "Upload any sales dataset",
-        type=["csv", "tsv", "txt", "xlsx", "xls", "json", "jsonl", "parquet"],
+        "Drag and Drop file here or Click to upload",
+        type=["csv"],
+        accept_multiple_files=False,
+        key="sales_csv_upload",
         label_visibility="collapsed",
     )
-    use_sample = st.button("Load sample dataset", width="stretch")
-    st.caption("Flexible upload: the app auto-detects date, region/city, category/product, quantity, revenue, discount, and review columns.")
-    st.divider()
-    requested_page = st.query_params.get("page", "Command Center")
-    if isinstance(requested_page, list):
-        requested_page = requested_page[0]
-    if requested_page not in PAGES:
-        requested_page = "Command Center"
-    current_page = st.radio("Platform pages", PAGES, index=PAGES.index(requested_page), key="platform_page")
 
+    st.download_button(
+        "Download Google Colab Notebook",
+        generate_colab_notebook(),
+        "sales_forecast_colab_pipeline.ipynb",
+        "application/x-ipynb+json",
+        width="stretch",
+        key="download_upload_colab",
+    )
 
-try:
-    raw_df, dataset_name = ("", "")
-    if uploaded_file is not None and not use_sample:
+    if uploaded_file is None:
+        st.info("Upload a CSV file and click Process Dataset to build the dashboard.")
+        return None
+
+    upload_signature = f"{uploaded_file.name}:{getattr(uploaded_file, 'size', 0)}"
+    if st.session_state.get("active_upload_signature") != upload_signature:
+        st.session_state["active_upload_signature"] = upload_signature
+        st.session_state.pop("dataset_context", None)
+
+    try:
         raw_df, dataset_name = read_uploaded_dataset(uploaded_file)
+    except Exception as exc:
+        st.error(str(exc))
+        return None
+
+    st.success(f"CSV loaded for review: {dataset_name} ({len(raw_df):,} rows, {len(raw_df.columns):,} columns).")
+    detected_mapping = auto_detect_column_mapping(raw_df)
+    mapping_warnings = mapping_completeness(detected_mapping)
+
+    if mapping_warnings:
+        st.warning("Some important columns were unclear. Confirm the mapping before processing.")
+        for warning in mapping_warnings:
+            st.caption(warning)
+        column_mapping = render_column_mapping(raw_df, detected_mapping)
     else:
-        raw_df, dataset_name = load_sample_data(), "Sample dataset"
-except Exception as exc:
-    st.error(f"Could not read the dataset file: {exc}")
-    st.stop()
+        st.success("Important sales columns were auto-detected.")
+        with st.expander("Review or adjust detected column mapping", expanded=False):
+            column_mapping = render_column_mapping(raw_df, detected_mapping)
 
-detected_mapping = auto_detect_column_mapping(raw_df)
-mapping_warnings = mapping_completeness(detected_mapping)
-with st.expander("Dataset preview and column mapping", expanded=bool(mapping_warnings)):
-    st.caption(f"Active file: {dataset_name} | Rows: {len(raw_df):,} | Columns: {len(raw_df.columns):,}")
-    st.markdown("#### Uploaded Dataset Preview")
-    st.dataframe(raw_df.head(12), width="stretch")
-    column_mapping = render_column_mapping(raw_df, detected_mapping)
-    final_warnings = mapping_completeness(column_mapping)
-    if final_warnings:
-        for warning in final_warnings:
-            st.warning(warning)
-    else:
-        st.success("Column mapping looks strong. The app can build full dashboard, prediction, chatbot, and report outputs.")
+    with st.expander("Preview uploaded CSV", expanded=False):
+        st.dataframe(raw_df.head(25), width="stretch")
 
-try:
-    clean_df = preprocess_data(raw_df, column_mapping)
-except Exception as exc:
-    st.error(f"Could not preprocess the dataset: {exc}")
-    st.stop()
+    process_clicked = st.button("Process Dataset", type="primary", width="stretch")
+    if not process_clicked:
+        return None
 
-if len(clean_df) < 2:
-    st.error("The dataset needs at least 2 usable rows after cleaning.")
-    st.stop()
+    with st.spinner("Processing uploaded CSV and building the dashboard..."):
+        return process_uploaded_sales_dataset(raw_df, dataset_name, column_mapping)
 
-with st.expander("Cleaned dataset preview", expanded=False):
-    preview_columns = list(dict.fromkeys(REQUIRED_COLUMNS + NUMERIC_FEATURES))
-    st.dataframe(clean_df[preview_columns].head(12), width="stretch")
 
-model, metrics, validation, leaderboard = build_model(clean_df)
-forecast_chart = forecast_daily_sales(clean_df)
-live_forecast = live_sales_prediction(clean_df)
-india_forecast = india_2026_forecast(clean_df)
-tn_forecast = tamil_nadu_live_prediction(clean_df)
-sentiment_pct, keywords, issues = analyze_reviews(clean_df)
-anomalies = detect_anomalies(clean_df)
+def render_sidebar_navigation(current_page, user_info):
+    provider_name, provider_state = ai_provider_status()
+    with st.sidebar:
+        st.markdown(
+            """
+            <div class="sidebar-brand">
+                <h2>Sales Forecast AI</h2>
+                <p>Professional forecasting workspace</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            f"""
+            <div class="sidebar-user">
+                <strong>{user_info['name']}</strong>
+                <span>{user_info['email'] or 'Workspace access enabled'}</span>
+                <span>{user_info['source']}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        if google_auth_configured() and getattr(getattr(st, "user", None), "is_logged_in", False):
+            if st.button("Sign out", width="stretch"):
+                st.logout()
 
-region_sales = clean_df.groupby("region", as_index=False)["revenue"].sum().sort_values("revenue", ascending=False)
-category_sales = clean_df.groupby("product_category", as_index=False)["revenue"].sum().sort_values("revenue", ascending=False)
-kpis = {
-    "total_revenue": clean_df["revenue"].sum(),
-    "total_units": clean_df["units_sold"].sum(),
-    "best_region": region_sales.iloc[0]["region"],
-    "best_region_revenue": region_sales.iloc[0]["revenue"],
-    "best_category": category_sales.iloc[0]["product_category"],
-}
-summary, recommendations = business_summary(clean_df, kpis, sentiment_pct, issues, anomalies, india_forecast, tn_forecast)
-ai_context_text = build_ai_context(clean_df, kpis, sentiment_pct, keywords, issues, anomalies, india_forecast, live_forecast, tn_forecast, recommendations, metrics)
+        st.markdown(
+            """
+            <div class="teamspace-line">
+                <span class="teamspace-badge">CT</span>
+                <span>CRM Teamspace</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        nav_search = st.text_input("Search", placeholder="Search modules", label_visibility="collapsed")
+        search_value = nav_search.strip().lower()
 
-default_pred_date = date(2026, 5, 5)
-default_region = sorted(clean_df["region"].unique())[0]
-default_product = sorted(clean_df["product_category"].unique())[0]
-default_units = float(clean_df["units_sold"].median())
-default_discount = float(clean_df["discount_pct"].median())
-default_predicted_revenue, _default_feature_row = predict_revenue_scenario(
-    model,
-    clean_df,
-    default_pred_date,
-    default_region,
-    default_product,
-    default_units,
-    default_discount,
-)
-default_prediction_result = {
-    "date": default_pred_date,
-    "region": default_region,
-    "product_category": default_product,
-    "units_sold": default_units,
-    "discount_pct": default_discount,
-    "predicted_revenue": default_predicted_revenue,
-}
+        for section, pages in PAGE_GROUPS.items():
+            filtered_pages = [page for page in pages if not search_value or search_value in page.lower()]
+            if not filtered_pages:
+                continue
+            st.markdown(f"<div class='nav-caption'>{section}</div>", unsafe_allow_html=True)
+            for page in filtered_pages:
+                state_class = "nav-link active" if page == current_page else "nav-link"
+                st.markdown(
+                    f"<a class='{state_class}' href='?page={page}' target='_self'>{NAV_LABELS[page]}</a>",
+                    unsafe_allow_html=True,
+                )
 
-st.markdown('<a class="floating-chat-button" href="?page=AI%20Chatbot" target="_self">AI Chatbot</a>', unsafe_allow_html=True)
+        st.divider()
+        st.caption(f"AI provider: {provider_name} | {provider_state}")
+        st.caption("Upload and process CSV files from the main workspace.")
 
-if current_page == "Command Center":
-    st.subheader("Executive Command Center")
-    st.caption("A focused overview of dataset performance, model intelligence, live forecasts, and business risk signals.")
 
-    cols = st.columns(4)
-    with cols[0]:
-        metric_card("Total Revenue", inr(kpis["total_revenue"]), "Cleaned dataset revenue")
-    with cols[1]:
-        metric_card("Total Units", f"{kpis['total_units']:,.0f}", "Units sold")
-    with cols[2]:
-        metric_card("Best Region", kpis["best_region"], inr(kpis["best_region_revenue"]))
-    with cols[3]:
-        metric_card("Best Category", kpis["best_category"], "Top product category")
+def render_home_dashboard(clean_df, kpis, metrics, leaderboard, live_forecast, india_forecast, crm_forecast, recommendations, region_sales, category_sales):
+    render_page_band("Org Overview", "A CRM-style summary of revenue, model health, pipeline coverage, and the next actions for this forecast cycle.")
 
-    st.markdown("### Predictive Intelligence Engine")
-    ai_cols = st.columns(4)
-    with ai_cols[0]:
-        metric_card("Best Model", metrics["Best Model"], "Auto-selected by validation")
-    with ai_cols[1]:
-        metric_card("Accuracy Score", f"{metrics['Accuracy']:.1f}%", "Lower WAPE means stronger accuracy")
-    with ai_cols[2]:
-        metric_card("Validation WAPE", f"{metrics['WAPE']:.1f}%", "Weighted absolute percent error")
-    with ai_cols[3]:
-        metric_card("Signal Features", str(len(NUMERIC_FEATURES) + len(CATEGORICAL_FEATURES)), "Trend, seasonality, lag and category signals")
-    st.dataframe(leaderboard[["Model", "RMSE", "MAE", "R2", "WAPE", "Accuracy"]], width="stretch")
+    top_cols = st.columns(4)
+    top_metrics = [
+        ("Total Revenue", inr(kpis["total_revenue"]), "Uploaded data in current workspace"),
+        ("Weighted Forecast", inr(crm_forecast["weighted_forecast"]), f"{crm_forecast['attainment']:.0f}% attainment"),
+        ("Quota Gap", inr(crm_forecast["quota_gap"]), f"{crm_forecast['pipeline_coverage']:.1f}x coverage"),
+        ("Confidence", f"{crm_forecast['confidence']}%", metrics["Best Model"]),
+    ]
+    for col, (label, value, detail) in zip(top_cols, top_metrics):
+        with col:
+            metric_card(label, value, detail)
 
-    st.markdown("### Live Sales Prediction")
-    live_cols = st.columns(4)
-    with live_cols[0]:
-        metric_card("Today's Estimated Sales", inr(live_forecast["today_estimate"]), f"Confidence: {live_forecast['confidence']}")
-    with live_cols[1]:
-        metric_card("Tomorrow's Prediction", inr(live_forecast["tomorrow_forecast"]), f"Trend: {live_forecast['direction']}")
-    with live_cols[2]:
-        metric_card("Next 7 Days Forecast", inr(live_forecast["next_7"]), f"{abs(live_forecast['weekly_growth']):.1f}% {live_forecast['direction']}")
-    with live_cols[3]:
-        metric_card("Next 30 Days Forecast", inr(live_forecast["next_30"]), "Moving average + seasonality")
-    st.info(live_forecast["insight"])
-    st.plotly_chart(
-        px.line(live_forecast["chart"], x="date", y=["revenue", "forecast"], title="Live Actual vs Forecast Sales"),
-        width="stretch",
-    )
+    mid_cols = st.columns(4)
+    mid_metrics = [
+        ("Best Region", kpis["best_region"], inr(kpis["best_region_revenue"])),
+        ("Best Category", kpis["best_category"], "Highest revenue contribution"),
+        ("India 2026 Projection", inr(india_forecast["full_year"]), india_forecast["direction"]),
+        ("Live 30-Day Forecast", inr(live_forecast["next_30"]), live_forecast["confidence"]),
+    ]
+    for col, (label, value, detail) in zip(mid_cols, mid_metrics):
+        with col:
+            metric_card(label, value, detail)
 
-    st.markdown("### India 2026 Live Sales Forecast")
-    india_cols = st.columns(4)
-    with india_cols[0]:
-        metric_card("Today's India Estimate", inr(india_forecast["today_estimate"]), f"As of {india_forecast['as_of']}")
-    with india_cols[1]:
-        metric_card("2026 YTD Actual", inr(india_forecast["ytd_actual"]), india_forecast["scope"])
-    with india_cols[2]:
-        metric_card("Remaining 2026", inr(india_forecast["remaining_forecast"]), f"Next 90 days: {inr(india_forecast['next_90'])}")
-    with india_cols[3]:
-        metric_card("2026 Projection", inr(india_forecast["full_year"]), f"{abs(india_forecast['growth']):.1f}% {india_forecast['direction']}")
-    st.info(f"Confidence: {india_forecast['confidence']}. This forecast uses uploaded data, moving averages, damped trend, and weekday seasonality.")
-    st.plotly_chart(
-        go.Figure()
-        .add_bar(x=india_forecast["monthly"]["month"], y=india_forecast["monthly"]["actual"], name="Actual")
-        .add_bar(x=india_forecast["monthly"]["month"], y=india_forecast["monthly"]["forecast"], name="Forecast")
-        .update_layout(barmode="stack", height=360, margin=dict(l=10, r=10, t=40, b=10)),
-        width="stretch",
-    )
-
-    c1, c2 = st.columns(2)
-    with c1:
+    chart_a, chart_b = st.columns(2)
+    with chart_a:
         st.plotly_chart(px.line(daily_revenue(clean_df), x="date", y="revenue", title="Revenue Trend"), width="stretch")
-    with c2:
-        st.plotly_chart(px.bar(region_sales, x="region", y="revenue", title="Region-wise Sales"), width="stretch")
-    c3, c4 = st.columns(2)
-    with c3:
-        st.plotly_chart(px.bar(category_sales, x="product_category", y="revenue", title="Product Category Performance"), width="stretch")
-    with c4:
+    with chart_b:
+        st.plotly_chart(px.bar(region_sales, x="region", y="revenue", title="Region Contribution"), width="stretch")
+
+    chart_c, chart_d = st.columns(2)
+    with chart_c:
+        st.plotly_chart(px.bar(category_sales, x="product_category", y="revenue", title="Category Performance"), width="stretch")
+    with chart_d:
+        st.plotly_chart(
+            px.bar(
+                leaderboard[["Model", "Accuracy"]],
+                x="Model",
+                y="Accuracy",
+                title="Model Accuracy Score",
+                color="Accuracy",
+                color_continuous_scale="Blues",
+            ),
+            width="stretch",
+        )
+
+    st.markdown("### Recommended Actions")
+    for rec in recommendations[:5]:
+        st.info(rec)
+
+    render_project_assets(compact=True)
+
+
+def render_analytics_workspace(clean_df, validation, forecast_chart, region_sales, category_sales, live_forecast, metrics, anomalies):
+    render_page_band("Analytics", "Forecast diagnostics, territory movement, validation quality, and live trend monitoring.")
+
+    metric_cols = st.columns(4)
+    analytics_metrics = [
+        ("Validation Accuracy", f"{metrics['Accuracy']:.1f}%", f"WAPE {metrics['WAPE']:.1f}%"),
+        ("Tracked Anomalies", str(len(anomalies)), "Revenue exceptions in uploaded data"),
+        ("Today's Estimate", inr(live_forecast["today_estimate"]), live_forecast["confidence"]),
+        ("Next 7 Days", inr(live_forecast["next_7"]), live_forecast["direction"]),
+    ]
+    for col, (label, value, detail) in zip(metric_cols, analytics_metrics):
+        with col:
+            metric_card(label, value, detail)
+
+    upper_left, upper_right = st.columns(2)
+    with upper_left:
+        st.plotly_chart(px.line(validation, x="date", y=["actual", "predicted"], title="Validation: Actual vs Predicted"), width="stretch")
+    with upper_right:
         st.plotly_chart(px.line(forecast_chart, x="date", y=["revenue", "forecast"], title="30-Day Forecast"), width="stretch")
 
-    st.markdown("### Anomaly Alerts")
-    if len(anomalies):
-        for _, row in anomalies.head(6).iterrows():
-            st.markdown(f"<div class='alert-box'><b>{row['type']}</b> on {row['date'].date()}: {inr(row['revenue'])}</div>", unsafe_allow_html=True)
-    else:
-        st.success("No major anomaly detected.")
+    lower_left, lower_right = st.columns(2)
+    with lower_left:
+        st.plotly_chart(px.bar(region_sales, x="region", y="revenue", title="Region-wise Sales"), width="stretch")
+    with lower_right:
+        st.plotly_chart(px.bar(category_sales, x="product_category", y="revenue", title="Category-wise Sales"), width="stretch")
 
-elif current_page == "Live Tamil Nadu":
-    render_tamil_nadu_live_dashboard(clean_df)
+    with st.expander("Open live Tamil Nadu commerce monitor", expanded=False):
+        render_tamil_nadu_live_dashboard(clean_df)
 
-elif current_page == "Prediction Studio":
-    st.subheader("Manual Revenue Prediction")
-    st.caption("Select a scenario and the trained Streamlit model will predict revenue.")
+
+def render_deals_workspace(model, clean_df, metrics, leaderboard, validation, default_prediction_result):
+    render_page_band("Deals", "Model-assisted deal planning for scenario testing, weighted revenue review, and validation checks.")
     c1, c2, c3 = st.columns(3)
     with c1:
-        pred_date = st.date_input("Prediction date", value=date(2026, 5, 5))
+        pred_date = st.date_input("Prediction date", value=default_prediction_result["date"])
         region = st.selectbox("Region", sorted(clean_df["region"].unique()))
     with c2:
         product = st.selectbox("Product category", sorted(clean_df["product_category"].unique()))
@@ -1675,7 +3014,7 @@ elif current_page == "Prediction Studio":
     with c3:
         discount = st.slider("Discount %", 0.0, 90.0, float(clean_df["discount_pct"].median()))
 
-    predicted_revenue, feature_row = predict_revenue_scenario(model, clean_df, pred_date, region, product, units, discount)
+    predicted_revenue, _feature_row = predict_revenue_scenario(model, clean_df, pred_date, region, product, units, discount)
     st.session_state["latest_prediction"] = {
         "date": pred_date,
         "region": region,
@@ -1684,64 +3023,128 @@ elif current_page == "Prediction Studio":
         "discount_pct": discount,
         "predicted_revenue": predicted_revenue,
     }
-    st.metric("Predicted Revenue", inr(predicted_revenue))
 
-    st.markdown("### Model Leaderboard")
-    st.caption(f"Best live model: {metrics['Best Model']} | Accuracy score: {metrics['Accuracy']:.1f}% | Validation rows: {metrics['Validation Rows']}")
+    preview_cols = st.columns(4)
+    deal_metrics = [
+        ("Predicted Revenue", inr(predicted_revenue), "Scenario output"),
+        ("Best Model", metrics["Best Model"], "Auto-selected on validation"),
+        ("Accuracy Score", f"{metrics['Accuracy']:.1f}%", f"Rows: {metrics['Validation Rows']}"),
+        ("Validation WAPE", f"{metrics['WAPE']:.1f}%", "Lower is stronger"),
+    ]
+    for col, (label, value, detail) in zip(preview_cols, deal_metrics):
+        with col:
+            metric_card(label, value, detail)
+
     st.dataframe(leaderboard[["Model", "RMSE", "MAE", "R2", "WAPE", "Accuracy"]], width="stretch")
-    st.plotly_chart(px.line(validation, x="date", y=["actual", "predicted"], title="Actual vs Predicted Validation"), width="stretch")
+    st.plotly_chart(px.line(validation, x="date", y=["actual", "predicted"], title="Validation History"), width="stretch")
 
-elif current_page == "Dataset Studio":
-    st.subheader("Dataset Studio")
-    st.caption("Inspect uploaded data, mapped fields, cleaned model-ready features, and exportable dataset assets.")
+
+def render_documents_workspace(raw_df, clean_df, dataset_name, column_mapping):
+    render_page_band("Documents", "Project assets, preprocessing links, schema mapping, and export-ready datasets in one place.")
+    render_project_assets(compact=False)
+    processing_summary = build_processing_summary(raw_df, clean_df, column_mapping)
+    render_processing_pipeline(processing_summary, dataset_name)
+
     studio_cols = st.columns(4)
     with studio_cols[0]:
         metric_card("Raw Rows", f"{len(raw_df):,}", dataset_name)
     with studio_cols[1]:
-        metric_card("Clean Rows", f"{len(clean_df):,}", "After dedupe and preprocessing")
+        metric_card("Clean Rows", f"{len(clean_df):,}", "Ready for forecasting")
     with studio_cols[2]:
         metric_card("Columns", f"{len(raw_df.columns):,}", "Uploaded schema")
     with studio_cols[3]:
         metric_card("Mapped Fields", f"{sum(bool(value) for value in column_mapping.values())}", "Detected or selected")
-    st.markdown("### Column Mapping")
+
+    st.markdown("### Field Mapping")
     st.dataframe(pd.DataFrame([{"field": key, "mapped_column": value or "Fallback"} for key, value in column_mapping.items()]), width="stretch")
     st.markdown("### Raw Dataset Preview")
     st.dataframe(raw_df.head(100), width="stretch")
-    st.markdown("### Cleaned Feature Preview")
-    st.dataframe(clean_df.head(100), width="stretch")
+    st.markdown("### Cleaned Dataset Preview")
+    preview_columns = list(dict.fromkeys(REQUIRED_COLUMNS + NUMERIC_FEATURES))
+    st.dataframe(clean_df[preview_columns].head(100), width="stretch")
     st.download_button("Download cleaned dataset CSV", clean_df.to_csv(index=False).encode("utf-8"), "cleaned_sales_data.csv", "text/csv")
 
-elif current_page == "AI Chatbot":
-    st.subheader("AI Chatbot")
+
+def render_table_workspace(title, description, table, metrics_row=None):
+    render_page_band(title, description)
+    if metrics_row:
+        cols = st.columns(len(metrics_row))
+        for col, (label, value, detail) in zip(cols, metrics_row):
+            with col:
+                metric_card(label, value, detail)
+    st.dataframe(table, width="stretch", hide_index=True)
+
+
+def answer_assistant_question(question, clean_df, kpis, sentiment_pct, issues, anomalies, india_forecast, live_forecast, tn_forecast, recommendations, metrics, crm_forecast, ai_context_text):
+    local_answer = local_chatbot_answer(
+        question,
+        clean_df,
+        kpis,
+        sentiment_pct,
+        issues,
+        anomalies,
+        india_forecast,
+        live_forecast,
+        tn_forecast,
+        recommendations,
+        metrics,
+        crm_forecast,
+    )
+    try:
+        answer, source = ask_ai(question, ai_context_text)
+    except Exception as exc:
+        answer, source = local_answer, f"Local insight engine ({exc})"
+    return answer, source
+
+
+def render_assistant_workspace(clean_df, kpis, sentiment_pct, issues, anomalies, india_forecast, live_forecast, tn_forecast, recommendations, metrics, crm_forecast, ai_context_text):
     provider_name, provider_state = ai_provider_status()
-    st.caption(f"Provider: {provider_name}. If the provider is unavailable, the local insight engine answers from the uploaded data.")
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = []
-    if "last_quick_question" not in st.session_state:
-        st.session_state.last_quick_question = ""
+    st.markdown(
+        f"""
+        <div class="assistant-shell">
+            <div class="assistant-topbar">
+                <div class="assistant-brand">
+                    <span class="assistant-mark">AI</span>
+                    <div>
+                        <div>Sales Forecast Assistant</div>
+                        <div style="color:#5F6F86;font-size:.78rem;font-weight:700;letter-spacing:.08em;">REVENUE INTELLIGENCE</div>
+                    </div>
+                </div>
+                <span class="assistant-online">{provider_state.upper()}</span>
+            </div>
+            <div class="assistant-hero">
+                <div class="assistant-avatar">AI</div>
+                <h1>Ask about your sales forecast</h1>
+                <p>Use this assistant to understand quota health, revenue trends, territory risk, customer issues, model accuracy, and future sales predictions from the processed CSV.</p>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    quick_questions = [
-        "What are live sales now?",
-        "Which Tamil Nadu district has highest sales?",
-        "What is the sales prediction for this month?",
-        "Summarize May 2026 Tamil Nadu sales",
-        "Download the report",
-        "Which region has highest sales?",
+    quick_prompts = [
+        "Summarize forecast health",
+        "Which territories are at risk?",
         "Predict next 30 days sales",
-        "Why did sales drop?",
-        "Summarize customer complaints",
+        "Explain model accuracy",
         "Give business recommendations",
-        "How accurate is the model?",
     ]
-    selected_question = st.selectbox("Try a quick question", [""] + quick_questions, key="quick_question_select")
-    typed_question = st.chat_input("Ask anything about the uploaded dataset")
-    question = typed_question
-    if selected_question and selected_question != st.session_state.last_quick_question:
-        question = selected_question
-        st.session_state.last_quick_question = selected_question
+    prompt_cols = st.columns([1, 1, 1, 1, 1])
+    pending_question = None
+    for col, prompt in zip(prompt_cols, quick_prompts):
+        with col:
+            if st.button(prompt, width="stretch", key=f"assistant_prompt_{prompt}"):
+                pending_question = prompt
 
+    st.markdown("<div class='assistant-divider'></div>", unsafe_allow_html=True)
+    st.caption(f"Provider: {provider_name}. Answers use the processed dataset and local fallback if the AI provider is unavailable.")
+
+    if "assistant_chat_history" not in st.session_state:
+        st.session_state.assistant_chat_history = []
+
+    question = pending_question or st.chat_input("Ask about revenue, forecasts, pipeline, anomalies, or recommendations...")
     if question:
-        local_answer = local_chatbot_answer(
+        answer, source = answer_assistant_question(
             question,
             clean_df,
             kpis,
@@ -1753,26 +3156,218 @@ elif current_page == "AI Chatbot":
             tn_forecast,
             recommendations,
             metrics,
+            crm_forecast,
+            ai_context_text,
         )
-        try:
-            answer, source = ask_ai(question, ai_context_text)
-        except Exception as exc:
-            answer, source = local_answer, f"Local insight engine ({exc})"
-        st.session_state.chat_history.append(("user", question, ""))
-        st.session_state.chat_history.append(("assistant", answer, source))
+        st.session_state.assistant_chat_history.append(("user", question, ""))
+        st.session_state.assistant_chat_history.append(("assistant", answer, source))
 
-    for role, text, source in st.session_state.chat_history:
+    st.markdown("<div class='assistant-chat-card'>", unsafe_allow_html=True)
+    if not st.session_state.assistant_chat_history:
+        st.info("Start with a quick prompt or ask a custom question after processing your CSV.")
+    for role, text, source in st.session_state.assistant_chat_history:
         with st.chat_message(role):
             st.write(text)
             if source:
                 st.caption(source)
+    st.markdown("</div>", unsafe_allow_html=True)
 
-    with st.expander("What the chatbot knows about this dataset"):
-        st.code(ai_context_text[:6000], language="text")
+
+requested_page = st.query_params.get("page", "Analytics")
+if isinstance(requested_page, list):
+    requested_page = requested_page[0]
+if requested_page not in PAGES:
+    requested_page = "Analytics"
+current_page = requested_page
+
+user_info = render_google_auth_gate()
+render_sidebar_navigation(current_page, user_info)
+render_top_shell(user_info, current_page)
+
+dataset_context = st.session_state.get("dataset_context")
+if not dataset_context:
+    processed_context = render_csv_upload_processor()
+    if processed_context:
+        st.session_state["dataset_context"] = processed_context
+        st.session_state["dataset_processed_notice"] = True
+        st.rerun()
+    dataset_context = st.session_state.get("dataset_context")
+
+if not dataset_context:
+    st.stop()
+
+raw_df = dataset_context["raw_df"]
+dataset_name = dataset_context["dataset_name"]
+column_mapping = dataset_context["column_mapping"]
+clean_df = dataset_context["clean_df"]
+model = dataset_context["model"]
+metrics = dataset_context["metrics"]
+validation = dataset_context["validation"]
+leaderboard = dataset_context["leaderboard"]
+forecast_chart = dataset_context["forecast_chart"]
+live_forecast = dataset_context["live_forecast"]
+india_forecast = dataset_context["india_forecast"]
+tn_forecast = dataset_context["tn_forecast"]
+sentiment_pct = dataset_context["sentiment_pct"]
+keywords = dataset_context["keywords"]
+issues = dataset_context["issues"]
+anomalies = dataset_context["anomalies"]
+crm_forecast = dataset_context["crm_forecast"]
+region_sales = dataset_context["region_sales"]
+category_sales = dataset_context["category_sales"]
+kpis = dataset_context["kpis"]
+summary = dataset_context["summary"]
+recommendations = dataset_context["recommendations"]
+ai_context_text = dataset_context["ai_context_text"]
+processing_summary = dataset_context["processing_summary"]
+default_prediction_result = dataset_context["default_prediction_result"]
+predictions_df = dataset_context["predictions_df"]
+
+if st.session_state.pop("dataset_processed_notice", False):
+    st.success("Dataset processed successfully. Dashboard results are ready.")
+
+if current_page != "Assistant":
+    render_processed_downloads(dataset_context)
+
+if current_page == "Home":
+    render_home_dashboard(clean_df, kpis, metrics, leaderboard, live_forecast, india_forecast, crm_forecast, recommendations, region_sales, category_sales)
+    render_processing_pipeline(processing_summary, dataset_name)
+
+elif current_page == "Analytics":
+    render_analytics_workspace(clean_df, validation, forecast_chart, region_sales, category_sales, live_forecast, metrics, anomalies)
+
+elif current_page == "Assistant":
+    render_assistant_workspace(clean_df, kpis, sentiment_pct, issues, anomalies, india_forecast, live_forecast, tn_forecast, recommendations, metrics, crm_forecast, ai_context_text)
+
+elif current_page == "Forecasts":
+    render_forecast_center(crm_forecast)
+
+elif current_page == "Deals":
+    render_deals_workspace(model, clean_df, metrics, leaderboard, validation, default_prediction_result)
+
+elif current_page == "Documents":
+    render_documents_workspace(raw_df, clean_df, dataset_name, column_mapping)
+
+elif current_page == "Leads":
+    leads_table = category_sales.rename(columns={"product_category": "Lead Segment", "revenue": "Open Revenue"}).copy()
+    leads_table["Priority"] = ["High" if idx < 3 else "Monitor" for idx in range(len(leads_table))]
+    leads_table["Expected Conversion"] = np.linspace(68, 34, len(leads_table)).round(0).astype(int).astype(str) + "%"
+    render_table_workspace(
+        "Leads",
+        "Lead coverage by product segment using the uploaded revenue distribution as the active pipeline proxy.",
+        leads_table,
+        [
+            ("Tracked Segments", str(len(leads_table)), "Active lead pools"),
+            ("Top Segment", str(leads_table.iloc[0]["Lead Segment"]), inr(leads_table.iloc[0]["Open Revenue"])),
+            ("Average Conversion", f"{np.linspace(68, 34, len(leads_table)).mean():.0f}%", "Weighted estimate"),
+        ],
+    )
+
+elif current_page == "Contacts":
+    contacts_table = crm_forecast["territories"][["manager", "region", "status", "forecast", "attainment"]].rename(
+        columns={"manager": "Relationship Owner", "region": "Contact Territory", "status": "Coverage Status", "forecast": "Forecast Value", "attainment": "Attainment %"}
+    )
+    render_table_workspace(
+        "Contacts",
+        "Relationship coverage view for territory owners derived from the forecast rollup.",
+        contacts_table.style.format({"Forecast Value": inr, "Attainment %": "{:.1f}%"}),
+        [
+            ("Owners", str(contacts_table["Relationship Owner"].nunique()), "Active territory coverage"),
+            ("On-track Territories", str((crm_forecast["territories"]["status"] == "On track").sum()), "Healthy book of business"),
+            ("Needs Attention", str((crm_forecast["territories"]["status"] != "On track").sum()), "Follow-up required"),
+        ],
+    )
+
+elif current_page == "Accounts":
+    accounts_table = region_sales.rename(columns={"region": "Account Region", "revenue": "Revenue"}).copy()
+    accounts_table["Share %"] = (accounts_table["Revenue"] / max(accounts_table["Revenue"].sum(), 1) * 100).round(1)
+    render_table_workspace(
+        "Accounts",
+        "Regional account concentration based on uploaded sales performance.",
+        accounts_table.style.format({"Revenue": inr, "Share %": "{:.1f}%"}),
+        [
+            ("Regions", str(len(accounts_table)), "Tracked account territories"),
+            ("Largest Region", str(accounts_table.iloc[0]["Account Region"]), inr(accounts_table.iloc[0]["Revenue"])),
+            ("Revenue Spread", f"{accounts_table['Share %'].max():.1f}%", "Top-region concentration"),
+        ],
+    )
+
+elif current_page == "Campaigns":
+    campaigns_table = category_sales.rename(columns={"product_category": "Campaign Theme", "revenue": "Influenced Revenue"}).copy()
+    campaigns_table["Focus"] = ["Scale" if idx < 2 else "Optimize" if idx < 5 else "Test" for idx in range(len(campaigns_table))]
+    render_table_workspace(
+        "Campaigns",
+        "Category-led campaign planning based on the strongest commercial themes in the dataset.",
+        campaigns_table.style.format({"Influenced Revenue": inr}),
+        [
+            ("Active Themes", str(len(campaigns_table)), "Campaign opportunities"),
+            ("Scale Now", str((campaigns_table["Focus"] == "Scale").sum()), "High-performing themes"),
+            ("Optimization Queue", str((campaigns_table["Focus"] == "Optimize").sum()), "Needs tuning"),
+        ],
+    )
+
+elif current_page == "Tasks":
+    risk_territories = crm_forecast["territories"][crm_forecast["territories"]["status"] != "On track"]
+    task_rows = [{"Task": rec, "Owner": "Forecast Ops", "Priority": "High" if idx < 2 else "Medium"} for idx, rec in enumerate(recommendations[:5])]
+    task_rows.extend(
+        [{"Task": f"Review commit plan for {row.region}", "Owner": row.manager, "Priority": "High" if row.status == "At risk" else "Medium"} for row in risk_territories.itertuples()]
+    )
+    tasks_table = pd.DataFrame(task_rows).drop_duplicates().head(12)
+    render_table_workspace(
+        "Tasks",
+        "Execution queue for closing the quarter with stronger quota coverage.",
+        tasks_table,
+        [
+            ("Open Tasks", str(len(tasks_table)), "Actionable work items"),
+            ("High Priority", str((tasks_table["Priority"] == "High").sum()), "Immediate follow-up"),
+            ("At-risk Territories", str((crm_forecast["territories"]["status"] == "At risk").sum()), "Escalation candidates"),
+        ],
+    )
+
+elif current_page == "Meetings":
+    meetings_table = crm_forecast["territories"][["manager", "region", "status", "attainment"]].copy()
+    meetings_table["Meeting Type"] = np.where(meetings_table["status"] == "At risk", "Recovery Review", "Forecast Cadence")
+    meetings_table["Cadence"] = np.where(meetings_table["status"] == "On track", "Weekly", "Twice Weekly")
+    meetings_table = meetings_table.rename(columns={"manager": "Host", "region": "Territory", "status": "Status", "attainment": "Attainment %"})
+    render_table_workspace(
+        "Meetings",
+        "Forecast review rhythm for managers and territory owners.",
+        meetings_table.style.format({"Attainment %": "{:.1f}%"}),
+        [
+            ("Planned Reviews", str(len(meetings_table)), "Scheduled forecast check-ins"),
+            ("Recovery Reviews", str((meetings_table["Meeting Type"] == "Recovery Review").sum()), "Focused intervention"),
+            ("Weekly Cadence", str((meetings_table["Cadence"] == "Weekly").sum()), "Healthy territories"),
+        ],
+    )
+
+elif current_page == "Calls":
+    calls_table = crm_forecast["territories"][["manager", "region", "status", "quota", "forecast"]].copy()
+    calls_table["Call Purpose"] = np.where(calls_table["status"] == "At risk", "Close gap", "Confirm commit")
+    calls_table = calls_table.rename(columns={"manager": "Rep", "region": "Territory", "status": "Status", "quota": "Quota", "forecast": "Forecast"})
+    render_table_workspace(
+        "Calls",
+        "Call queue for managers working committed and best-case pipeline.",
+        calls_table.style.format({"Quota": inr, "Forecast": inr}),
+        [
+            ("Rep Queue", str(len(calls_table)), "Territory call lists"),
+            ("Commit Calls", str((calls_table["Call Purpose"] == "Confirm commit").sum()), "Protect current forecast"),
+            ("Gap Calls", str((calls_table["Call Purpose"] == "Close gap").sum()), "Quota recovery"),
+        ],
+    )
 
 elif current_page == "Reports":
-    st.subheader("Business Report Summary")
+    render_page_band("Reports", "Executive summary, forecast posture, exports, and a compact record of what the system recommends next.")
     st.write(summary)
+    st.markdown("### CRM Forecast Summary")
+    forecast_report_cols = st.columns(4)
+    with forecast_report_cols[0]:
+        metric_card("Quota", inr(crm_forecast["quota"]), crm_forecast["period_label"])
+    with forecast_report_cols[1]:
+        metric_card("Weighted Forecast", inr(crm_forecast["weighted_forecast"]), f"{crm_forecast['attainment']:.1f}% attainment")
+    with forecast_report_cols[2]:
+        metric_card("Quota Gap", inr(crm_forecast["quota_gap"]), f"{crm_forecast['pipeline_coverage']:.1f}x coverage")
+    with forecast_report_cols[3]:
+        metric_card("Forecast Confidence", f"{crm_forecast['confidence']}%", "Commit + pace + risk")
     st.markdown("### Tamil Nadu Live Prediction Summary")
     st.write(tn_forecast["insight"])
     tn_report_cols = st.columns(3)
@@ -1812,5 +3407,5 @@ elif current_page == "Reports":
     ).to_csv(index=False).encode("utf-8")
     st.download_button("Download latest prediction CSV", prediction_output, "prediction_results.csv", "text/csv")
 
-    report_bytes = pdf_report(summary, recommendations, kpis, metrics, india_forecast, live_forecast, tn_forecast, anomalies)
+    report_bytes = pdf_report(summary, recommendations, kpis, metrics, india_forecast, live_forecast, tn_forecast, crm_forecast, anomalies)
     st.download_button("Download PDF report", report_bytes, "sales_prediction_ai_report.pdf", "application/pdf")
