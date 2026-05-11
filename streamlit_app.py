@@ -104,7 +104,7 @@ FORECAST_MANAGERS = [
 REPO_URL = "https://github.com/og-harish/streamlit-sale-ml"
 COLAB_NOTEBOOK_PATH = "notebooks/sales_forecast_preprocessing_colab.ipynb"
 PPT_ASSET_PATH = "project_assets/Sales_Forecast_AI_Project_Deck.pptx"
-COLAB_URL = f"https://colab.research.google.com/github/og-harish/streamlit-sale-ml/blob/main/{COLAB_NOTEBOOK_PATH}"
+COLAB_URL = "https://colab.research.google.com/drive/1lGH_-b98jIyvX7DXjAR0sDlMtZOaF6zC?usp=sharing"
 PPT_URL = f"{REPO_URL}/raw/main/{PPT_ASSET_PATH}"
 
 TAMIL_NADU_CITIES = [

@@ -76,7 +76,7 @@ server_metadata_url = "https://accounts.google.com/.well-known/openid-configurat
 
 After this repository is pushed to GitHub, the website exposes these links under the header and on the Project Assets page:
 
-- Google Colab preprocessing notebook: [Open in Colab](https://colab.research.google.com/github/og-harish/streamlit-sale-ml/blob/main/notebooks/sales_forecast_preprocessing_colab.ipynb)
+- Google Colab preprocessing notebook: [Open in Colab](https://colab.research.google.com/drive/1lGH_-b98jIyvX7DXjAR0sDlMtZOaF6zC?usp=sharing)
 - PowerPoint project deck: [Download PPTX](https://github.com/og-harish/streamlit-sale-ml/raw/main/project_assets/Sales_Forecast_AI_Project_Deck.pptx)
 - GitHub repository: [og-harish/streamlit-sale-ml](https://github.com/og-harish/streamlit-sale-ml)
 
