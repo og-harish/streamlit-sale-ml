@@ -18,15 +18,10 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 
-try:
-    from xgboost import XGBRegressor
-except Exception:
-    XGBRegressor = None
-
-try:
-    from prophet import Prophet
-except Exception:
-    Prophet = None
+XGBRegressor = None
+_XGBOOST_CHECKED = False
+Prophet = None
+_PROPHET_CHECKED = False
 
 
 REQUIRED_COLUMNS = [
@@ -80,7 +75,7 @@ NAV_LABELS = {
     "Home": "Home",
     "Reports": "Reports",
     "Analytics": "Analytics",
-    "Assistant": "Assistant",
+    "Assistant": "AI Assistant",
     "Leads": "Leads",
     "Contacts": "Contacts",
     "Accounts": "Accounts",
@@ -829,9 +824,17 @@ def render_top_shell(user_info, current_page):
             </div>
             <div>
                 <span style="color:#5F6F86;font-weight:700;">{user_info['name']}</span>
+                <a class="crm-button primary" href="?page=Assistant" target="_self">Open AI Assistant</a>
             </div>
         </div>
         """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_floating_assistant_button():
+    st.markdown(
+        '<a class="floating-chat-button" href="?page=Assistant" target="_self">AI Assistant</a>',
         unsafe_allow_html=True,
     )
 
@@ -842,6 +845,32 @@ def ai_provider_status():
     if get_secret("GEMINI_API_KEY"):
         return "Gemini", "Connected"
     return "Local insight engine", "No API key configured"
+
+
+def get_xgb_regressor():
+    global XGBRegressor, _XGBOOST_CHECKED
+    if not _XGBOOST_CHECKED:
+        try:
+            from xgboost import XGBRegressor as LoadedXGBRegressor
+
+            XGBRegressor = LoadedXGBRegressor
+        except Exception:
+            XGBRegressor = None
+        _XGBOOST_CHECKED = True
+    return XGBRegressor
+
+
+def get_prophet_model():
+    global Prophet, _PROPHET_CHECKED
+    if not _PROPHET_CHECKED:
+        try:
+            from prophet import Prophet as LoadedProphet
+
+            Prophet = LoadedProphet
+        except Exception:
+            Prophet = None
+        _PROPHET_CHECKED = True
+    return Prophet
 
 
 @st.cache_data
@@ -1040,31 +1069,32 @@ def regression_pipeline(regressor):
     return Pipeline(steps=[("preprocess", preprocessor), ("model", regressor)])
 
 
-def regression_candidates():
+def regression_candidates(include_xgboost=True):
     candidates = {
         "RandomForest Quantum": RandomForestRegressor(
-            n_estimators=260,
+            n_estimators=120,
             min_samples_leaf=2,
             random_state=42,
             n_jobs=-1,
         ),
         "GradientBoosting Trend Learner": GradientBoostingRegressor(
-            n_estimators=180,
+            n_estimators=90,
             learning_rate=0.055,
             max_depth=3,
             random_state=42,
         ),
     }
-    if XGBRegressor is not None:
-        candidates["XGBoost Revenue Forecaster"] = XGBRegressor(
-            n_estimators=260,
+    xgb_regressor = get_xgb_regressor() if include_xgboost else None
+    if xgb_regressor is not None:
+        candidates["XGBoost Revenue Forecaster"] = xgb_regressor(
+            n_estimators=120,
             learning_rate=0.055,
             max_depth=4,
             subsample=0.9,
             colsample_bytree=0.9,
             objective="reg:squarederror",
             random_state=42,
-            n_jobs=-1,
+            n_jobs=2,
         )
     return candidates
 
@@ -1106,7 +1136,7 @@ def predict_revenue_scenario(model, clean_df, pred_date, region, product, units,
     return float(model.predict(feature_row)[0]), feature_row
 
 
-def build_model(df):
+def build_model(df, include_xgboost=True):
     features = NUMERIC_FEATURES + CATEGORICAL_FEATURES
     x = df[features]
     y = df["revenue"]
@@ -1123,8 +1153,9 @@ def build_model(df):
     leaderboard_rows = []
     trained_models = {}
     predictions_by_model = {}
+    candidates = regression_candidates(include_xgboost=include_xgboost)
 
-    for name, estimator in regression_candidates().items():
+    for name, estimator in candidates.items():
         model = regression_pipeline(estimator)
         model.fit(x_train, y_train)
         predictions = model.predict(x_eval)
@@ -1137,7 +1168,7 @@ def build_model(df):
     best_name = leaderboard.iloc[0]["Model"]
     best_predictions = predictions_by_model[best_name]
 
-    final_model = regression_pipeline(regression_candidates()[best_name])
+    final_model = regression_pipeline(candidates[best_name])
     final_model.fit(x, y)
     metrics = leaderboard.iloc[0].to_dict()
     metrics["Best Model"] = best_name
@@ -1158,16 +1189,17 @@ def daily_revenue(df):
     return df.groupby("date", as_index=False).agg(revenue=("revenue", "sum"), units_sold=("units_sold", "sum"))
 
 
-def forecast_daily_sales(df, periods=30):
+def forecast_daily_sales(df, periods=30, use_prophet=True):
     daily = daily_revenue(df).sort_values("date")
     values = daily["revenue"].to_numpy(dtype=float)
     if len(values) == 0:
         return pd.DataFrame()
 
-    if Prophet is not None and len(daily) >= 10:
+    prophet_model_class = get_prophet_model() if use_prophet and len(daily) >= 90 else None
+    if prophet_model_class is not None:
         try:
             prophet_df = daily[["date", "revenue"]].rename(columns={"date": "ds", "revenue": "y"})
-            prophet_model = Prophet(daily_seasonality=True, weekly_seasonality=True, yearly_seasonality=False)
+            prophet_model = prophet_model_class(daily_seasonality=True, weekly_seasonality=True, yearly_seasonality=False)
             prophet_model.fit(prophet_df)
             future = prophet_model.make_future_dataframe(periods=periods, freq="D")
             prophet_forecast = prophet_model.predict(future).tail(periods)
@@ -2940,7 +2972,7 @@ Territory statuses: {', '.join([f"{row.region}: {row.status}" for row in crm_for
     }
 
 
-def build_dataset_context(raw_df, dataset_name, column_mapping):
+def build_dataset_context(raw_df, dataset_name, column_mapping, include_xgboost=True, use_prophet=True):
     clean_df = preprocess_data(raw_df, column_mapping)
     if len(clean_df) < 2:
         raise ValueError("The dataset needs at least 2 usable rows after cleaning.")
@@ -2951,11 +2983,11 @@ def build_dataset_context(raw_df, dataset_name, column_mapping):
     anomalies = detect_anomalies(clean_df)
     region_sales = clean_df.groupby("region", as_index=False)["revenue"].sum().sort_values("revenue", ascending=False)
     category_sales = clean_df.groupby("product_category", as_index=False)["revenue"].sum().sort_values("revenue", ascending=False)
-    forecast_chart = forecast_daily_sales(clean_df)
+    forecast_chart = forecast_daily_sales(clean_df, use_prophet=use_prophet)
     live_forecast = live_sales_prediction(clean_df)
     india_forecast = india_2026_forecast(clean_df)
     tn_forecast = tamil_nadu_live_prediction(clean_df)
-    model, metrics, validation, leaderboard = build_model(clean_df)
+    model, metrics, validation, leaderboard = build_model(clean_df, include_xgboost=include_xgboost)
     crm_forecast = build_crm_forecast(clean_df, live_forecast, anomalies)
     predictions_df = build_future_predictions(live_forecast, forecast_chart)
 
@@ -3035,10 +3067,11 @@ Territory statuses: {', '.join([f"{row.region}: {row.status}" for row in crm_for
     }
 
 
+@st.cache_resource(show_spinner=False)
 def build_default_dataset_context():
     raw_df = load_sample_data()
     column_mapping = auto_detect_column_mapping(raw_df)
-    return build_dataset_context(raw_df, "Sample dataset", column_mapping)
+    return build_dataset_context(raw_df, "Sample dataset", column_mapping, include_xgboost=False, use_prophet=False)
 
 
 def render_processed_downloads(context):
@@ -3529,16 +3562,17 @@ def render_assistant_workspace(clean_df, kpis, sentiment_pct, issues, anomalies,
     st.markdown("</div>", unsafe_allow_html=True)
 
 
-requested_page = st.query_params.get("page", "Analytics")
+requested_page = st.query_params.get("page", "Home")
 if isinstance(requested_page, list):
     requested_page = requested_page[0]
 if requested_page not in PAGES:
-    requested_page = "Analytics"
+    requested_page = "Home"
 current_page = requested_page
 
 user_info = render_google_auth_gate()
 render_sidebar_navigation(current_page, user_info)
 render_top_shell(user_info, current_page)
+render_floating_assistant_button()
 
 dataset_context = st.session_state.get("dataset_context")
 if not dataset_context:
