@@ -3531,7 +3531,18 @@ def render_assistant_workspace(clean_df, kpis, sentiment_pct, issues, anomalies,
     if "assistant_chat_history" not in st.session_state:
         st.session_state.assistant_chat_history = []
 
-    question = pending_question or st.chat_input("Ask about revenue, forecasts, pipeline, anomalies, or recommendations...")
+    with st.form("assistant_question_form", clear_on_submit=True):
+        input_cols = st.columns([1, 0.16])
+        with input_cols[0]:
+            typed_question = st.text_input(
+                "Ask the AI assistant",
+                placeholder="Ask about revenue, forecasts, pipeline, anomalies, recommendations, or customer feedback...",
+                label_visibility="collapsed",
+            )
+        with input_cols[1]:
+            submitted_question = st.form_submit_button("Send", type="primary", width="stretch")
+
+    question = pending_question or (typed_question.strip() if submitted_question and typed_question.strip() else None)
     if question:
         answer, source = answer_assistant_question(
             question,
@@ -3572,7 +3583,8 @@ current_page = requested_page
 user_info = render_google_auth_gate()
 render_sidebar_navigation(current_page, user_info)
 render_top_shell(user_info, current_page)
-render_floating_assistant_button()
+if current_page != "Assistant":
+    render_floating_assistant_button()
 
 dataset_context = st.session_state.get("dataset_context")
 if not dataset_context:
