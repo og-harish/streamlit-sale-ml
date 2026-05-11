@@ -29,7 +29,7 @@ A Streamlit Community Cloud-ready professional sales forecasting workspace for f
 - Show statewide Tamil Nadu district/market predicted sales with live heatmap coverage across major commerce regions
 - Predict 2026 India sales with today estimate, YTD actuals, remaining-year forecast, and full-year projection
 - Live sales prediction cards for today, tomorrow, next 7 days, and next 30 days
-- Analyze review sentiment, keywords, and recurring issues
+- Analyze review sentiment, keywords, recurring issues, and NLP-based insight extraction for themes, intent signals, urgent feedback, and region/category sentiment
 - Chatbot uses Groq or Gemini from backend Streamlit secrets only, with richer dataset-aware local fallback answers
 - Download cleaned CSV, prediction CSV, and PDF report
 

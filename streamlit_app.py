@@ -12,6 +12,7 @@ import streamlit as st
 from fpdf import FPDF, XPos, YPos
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import ExtraTreesRegressor, GradientBoostingRegressor, IsolationForest, RandomForestRegressor
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
@@ -1486,6 +1487,122 @@ def analyze_reviews(df):
     return sentiment_pct, top_keywords, top_issues
 
 
+def extract_nlp_insights(df, sentiment_pct, keywords, issues):
+    text_df = df[["date", "region", "product_category", "customer_reviews"]].copy()
+    text_df["review_text"] = text_df["customer_reviews"].fillna("").astype(str).str.strip()
+    text_df = text_df[text_df["review_text"].str.len() > 0].copy()
+
+    positive_terms = {"excellent", "great", "good", "loved", "love", "fresh", "quick", "fast", "helpful", "smooth", "friendly", "premium", "value", "happy"}
+    negative_terms = {"delay", "late", "damaged", "bad", "slow", "poor", "issue", "stock", "return", "broken", "missing", "concern", "high"}
+    urgency_terms = {"urgent", "immediate", "asap", "delay", "late", "missing", "damaged", "refund", "return", "broken"}
+    price_terms = {"price", "pricing", "discount", "cost", "offer", "expensive", "high"}
+    service_terms = {"support", "service", "delivery", "shipping", "packaging", "helpful"}
+
+    def token_set(text):
+        return {word.strip(".,!?;:\"'()[]").lower() for word in str(text).split()}
+
+    def sentiment_score(text):
+        words = token_set(text)
+        return sum(word in positive_terms for word in words) - sum(word in negative_terms for word in words)
+
+    if text_df.empty:
+        empty = pd.DataFrame()
+        return {
+            "review_count": 0,
+            "top_theme": "No review text",
+            "negative_rate": 0,
+            "urgent_mentions": 0,
+            "key_phrases": empty,
+            "issue_themes": pd.DataFrame([{"theme": issue, "mentions": count, "share_pct": 0} for issue, count in issues]),
+            "intent_signals": empty,
+            "category_sentiment": empty,
+            "region_sentiment": empty,
+            "review_samples": empty,
+            "actions": ["Add customer review or feedback columns to unlock NLP insight extraction."],
+        }
+
+    lowered = text_df["review_text"].str.lower()
+    scores = lowered.map(sentiment_score)
+    text_df["sentiment_score"] = scores
+    text_df["sentiment_label"] = np.where(scores > 0, "Positive", np.where(scores < 0, "Negative", "Neutral"))
+    text_df["urgent_flag"] = lowered.map(lambda text: any(term in text for term in urgency_terms))
+
+    try:
+        vectorizer = TfidfVectorizer(stop_words="english", ngram_range=(1, 2), max_features=10, min_df=1)
+        tfidf = vectorizer.fit_transform(text_df["review_text"])
+        phrase_scores = np.asarray(tfidf.mean(axis=0)).ravel()
+        key_phrases = (
+            pd.DataFrame({"phrase": vectorizer.get_feature_names_out(), "score": phrase_scores})
+            .sort_values("score", ascending=False)
+            .head(8)
+        )
+    except Exception:
+        key_phrases = pd.DataFrame(keywords, columns=["phrase", "mentions"]).head(8)
+        key_phrases["score"] = key_phrases["mentions"] if "mentions" in key_phrases else 0
+
+    issue_df = pd.DataFrame(issues, columns=["theme", "mentions"])
+    issue_df["share_pct"] = (issue_df["mentions"] / max(len(text_df), 1) * 100).round(1)
+
+    intent_rows = [
+        {"signal": "Urgency / escalation", "mentions": int(lowered.map(lambda text: any(term in text for term in urgency_terms)).sum())},
+        {"signal": "Price sensitivity", "mentions": int(lowered.map(lambda text: any(term in text for term in price_terms)).sum())},
+        {"signal": "Service experience", "mentions": int(lowered.map(lambda text: any(term in text for term in service_terms)).sum())},
+        {"signal": "Positive advocacy", "mentions": int((scores > 0).sum())},
+        {"signal": "Negative friction", "mentions": int((scores < 0).sum())},
+    ]
+    intent_signals = pd.DataFrame(intent_rows)
+    intent_signals["share_pct"] = (intent_signals["mentions"] / max(len(text_df), 1) * 100).round(1)
+
+    category_sentiment = (
+        text_df.groupby("product_category", as_index=False)
+        .agg(
+            reviews=("review_text", "count"),
+            avg_sentiment=("sentiment_score", "mean"),
+            urgent_mentions=("urgent_flag", "sum"),
+        )
+        .sort_values(["urgent_mentions", "avg_sentiment"], ascending=[False, True])
+    )
+    region_sentiment = (
+        text_df.groupby("region", as_index=False)
+        .agg(
+            reviews=("review_text", "count"),
+            avg_sentiment=("sentiment_score", "mean"),
+            urgent_mentions=("urgent_flag", "sum"),
+        )
+        .sort_values(["urgent_mentions", "avg_sentiment"], ascending=[False, True])
+    )
+    review_samples = text_df.sort_values(["urgent_flag", "sentiment_score"], ascending=[False, True]).head(6)[
+        ["date", "region", "product_category", "sentiment_label", "review_text"]
+    ].copy()
+    review_samples["review_text"] = review_samples["review_text"].str.slice(0, 140)
+
+    top_issue = issue_df[issue_df["mentions"] > 0].sort_values("mentions", ascending=False)
+    top_issue_name = top_issue.iloc[0]["theme"] if len(top_issue) else "No repeated issue"
+    top_phrase = key_phrases.iloc[0]["phrase"] if len(key_phrases) else "No clear phrase"
+    urgent_mentions = int(text_df["urgent_flag"].sum())
+    negative_rate = round((text_df["sentiment_label"].eq("Negative").sum() / max(len(text_df), 1)) * 100, 1)
+    actions = [
+        f"Prioritize the '{top_issue_name}' theme because it appears most often in feedback.",
+        f"Use '{top_phrase}' as the first review phrase to inspect when explaining customer behavior.",
+        f"Escalate {urgent_mentions} urgent review(s) before the next forecast review.",
+        f"Watch negative sentiment at {negative_rate}% and compare it against revenue drops or anomaly days.",
+    ]
+
+    return {
+        "review_count": int(len(text_df)),
+        "top_theme": top_issue_name,
+        "negative_rate": negative_rate,
+        "urgent_mentions": urgent_mentions,
+        "key_phrases": key_phrases,
+        "issue_themes": issue_df,
+        "intent_signals": intent_signals,
+        "category_sentiment": category_sentiment,
+        "region_sentiment": region_sentiment,
+        "review_samples": review_samples,
+        "actions": actions,
+    }
+
+
 def detect_anomalies(df):
     daily = daily_revenue(df).sort_values("date")
     if len(daily) < 10:
@@ -1530,7 +1647,7 @@ def compact_table(df, max_rows=10):
     return df.head(max_rows).to_csv(index=False).strip()
 
 
-def build_ai_context(df, kpis, sentiment_pct, keywords, issues, anomalies, india_forecast, live_forecast, tn_forecast, recommendations, metrics):
+def build_ai_context(df, kpis, sentiment_pct, keywords, issues, anomalies, india_forecast, live_forecast, tn_forecast, recommendations, metrics, nlp_insights=None):
     daily = daily_revenue(df).sort_values("date")
     recent_daily = daily.tail(12)
     region_breakdown = (
@@ -1552,6 +1669,23 @@ def build_ai_context(df, kpis, sentiment_pct, keywords, issues, anomalies, india
     discount_corr = df["discount_pct"].corr(df["revenue"]) if df["discount_pct"].nunique() > 1 and df["revenue"].nunique() > 1 else 0
     top_keywords = ", ".join([f"{word} ({count})" for word, count in keywords]) or "None"
     issue_text = ", ".join([f"{issue}: {count}" for issue, count in issues if count > 0]) or "No repeated issues"
+    nlp_text = "NLP insight extraction not available."
+    if nlp_insights:
+        phrase_text = compact_table(nlp_insights.get("key_phrases"), 8)
+        intent_text = compact_table(nlp_insights.get("intent_signals"), 8)
+        nlp_actions = " | ".join(nlp_insights.get("actions", []))
+        nlp_text = f"""
+NLP-Based Insight Extraction:
+Review rows analyzed: {nlp_insights.get('review_count', 0)}
+Top theme: {nlp_insights.get('top_theme', 'Unknown')}
+Negative review rate: {nlp_insights.get('negative_rate', 0)}%
+Urgent mentions: {nlp_insights.get('urgent_mentions', 0)}
+Key phrases:
+{phrase_text}
+Intent signals:
+{intent_text}
+NLP actions: {nlp_actions}
+""".strip()
     anomaly_text = compact_table(anomalies[["date", "revenue", "pct_change", "type"]], 8) if len(anomalies) else "No major anomalies detected"
     tn_city_text = compact_table(tn_forecast["city_sales"], 9)
     tn_category_text = compact_table(tn_forecast["category_sales"], 7)
@@ -1571,6 +1705,7 @@ Tamil Nadu disclaimer: {tn_forecast['disclaimer']}
 Customer sentiment: positive {sentiment_pct['positive']}%, neutral {sentiment_pct['neutral']}%, negative {sentiment_pct['negative']}%.
 Top review keywords: {top_keywords}
 Detected customer issues: {issue_text}
+{nlp_text}
 Discount-to-revenue correlation: {discount_corr:.3f}
 Anomalies:
 {anomaly_text}
@@ -1652,6 +1787,8 @@ def local_chatbot_answer(question, df, kpis, sentiment_pct, issues, anomalies, i
             latest_anomaly = anomalies.iloc[0]
             return f"The clearest drop/spike signal is {latest_anomaly['type']} on {latest_anomaly['date'].date()} at {inr(latest_anomaly['revenue'])}. Check {weak_region}, {weak_category}, discount changes, and review issue '{top_issue}' first."
         return f"No major anomaly is currently flagged. The latest day changed by {latest_change:.1f}% versus the previous day; monitor {weak_region}, {weak_category}, and review issue '{top_issue}'."
+    if any(word in lower for word in ["nlp", "phrase", "theme", "intent", "feedback insight", "insight extraction"]):
+        return f"NLP insight extraction is available in Analytics and Reports. It highlights review themes, key phrases, urgency signals, product/category sentiment, region sentiment, and recommended follow-up actions. The strongest repeated issue right now is {top_issue}."
     if any(word in lower for word in ["sentiment", "review", "customer", "complaint", "issue"]):
         return f"Customer sentiment is {sentiment_pct['positive']}% positive, {sentiment_pct['neutral']}% neutral, and {sentiment_pct['negative']}% negative. The most important repeated issue is {top_issue}."
     if any(word in lower for word in ["forecast", "predict", "prediction", "tomorrow", "next 7", "next 30", "future"]):
@@ -1715,7 +1852,7 @@ User question:
     raise RuntimeError("No AI API key configured")
 
 
-def pdf_report(summary, recommendations, kpis, metrics, india_forecast, live_forecast, tn_forecast, crm_forecast, anomalies):
+def pdf_report(summary, recommendations, kpis, metrics, india_forecast, live_forecast, tn_forecast, crm_forecast, anomalies, nlp_insights=None):
     pdf = FPDF()
     pdf.add_page()
     text_width = 180
@@ -1749,6 +1886,40 @@ def pdf_report(summary, recommendations, kpis, metrics, india_forecast, live_for
         ),
     )
     pdf.ln(2)
+    if nlp_insights:
+        key_phrases = nlp_insights.get("key_phrases")
+        intent_signals = nlp_insights.get("intent_signals")
+        actions = nlp_insights.get("actions", [])
+        phrase_lines = []
+        if key_phrases is not None and len(key_phrases):
+            for row in key_phrases.head(5).itertuples(index=False):
+                phrase = getattr(row, "phrase", "")
+                score = getattr(row, "score", getattr(row, "mentions", ""))
+                phrase_lines.append(f"{phrase}: {score}")
+        intent_lines = []
+        if intent_signals is not None and len(intent_signals):
+            for row in intent_signals.head(5).itertuples(index=False):
+                signal = getattr(row, "signal", "")
+                mentions = getattr(row, "mentions", "")
+                intent_lines.append(f"{signal}: {mentions}")
+
+        pdf.set_font("Helvetica", "B", 12)
+        pdf.cell(text_width, 8, "NLP-Based Insight Extraction", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.set_font("Helvetica", size=10)
+        pdf.multi_cell(
+            text_width,
+            6,
+            (
+                f"Reviews analyzed: {nlp_insights.get('review_count', 0)}\n"
+                f"Top theme: {nlp_insights.get('top_theme', 'No theme')}\n"
+                f"Negative review rate: {nlp_insights.get('negative_rate', 0)}%\n"
+                f"Urgent mentions: {nlp_insights.get('urgent_mentions', 0)}\n"
+                f"Key phrases:\n{chr(10).join(phrase_lines) if phrase_lines else 'No strong phrases found.'}\n"
+                f"Intent signals:\n{chr(10).join(intent_lines) if intent_lines else 'No intent signals found.'}\n"
+                f"Recommended actions:\n{chr(10).join(actions) if actions else 'No NLP actions available.'}"
+            ),
+        )
+        pdf.ln(2)
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(text_width, 8, "Live Sales Forecast", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.set_font("Helvetica", size=10)
@@ -2672,6 +2843,7 @@ def process_uploaded_sales_dataset(raw_df, dataset_name, column_mapping):
 
     set_stage(3)
     sentiment_pct, keywords, issues = analyze_reviews(clean_df)
+    nlp_insights = extract_nlp_insights(clean_df, sentiment_pct, keywords, issues)
     anomalies = detect_anomalies(clean_df)
     region_sales = clean_df.groupby("region", as_index=False)["revenue"].sum().sort_values("revenue", ascending=False)
     category_sales = clean_df.groupby("product_category", as_index=False)["revenue"].sum().sort_values("revenue", ascending=False)
@@ -2720,7 +2892,7 @@ def process_uploaded_sales_dataset(raw_df, dataset_name, column_mapping):
         "best_category": category_sales.iloc[0]["product_category"],
     }
     summary, recommendations = business_summary(clean_df, kpis, sentiment_pct, issues, anomalies, india_forecast, tn_forecast)
-    ai_context_text = build_ai_context(clean_df, kpis, sentiment_pct, keywords, issues, anomalies, india_forecast, live_forecast, tn_forecast, recommendations, metrics)
+    ai_context_text = build_ai_context(clean_df, kpis, sentiment_pct, keywords, issues, anomalies, india_forecast, live_forecast, tn_forecast, recommendations, metrics, nlp_insights)
     ai_context_text += f"""
 
 CRM forecast center:
@@ -2753,6 +2925,7 @@ Territory statuses: {', '.join([f"{row.region}: {row.status}" for row in crm_for
         "sentiment_pct": sentiment_pct,
         "keywords": keywords,
         "issues": issues,
+        "nlp_insights": nlp_insights,
         "anomalies": anomalies,
         "crm_forecast": crm_forecast,
         "region_sales": region_sales,
@@ -2774,6 +2947,7 @@ def build_dataset_context(raw_df, dataset_name, column_mapping):
 
     processing_summary = build_processing_summary(raw_df, clean_df, column_mapping)
     sentiment_pct, keywords, issues = analyze_reviews(clean_df)
+    nlp_insights = extract_nlp_insights(clean_df, sentiment_pct, keywords, issues)
     anomalies = detect_anomalies(clean_df)
     region_sales = clean_df.groupby("region", as_index=False)["revenue"].sum().sort_values("revenue", ascending=False)
     category_sales = clean_df.groupby("product_category", as_index=False)["revenue"].sum().sort_values("revenue", ascending=False)
@@ -2815,7 +2989,7 @@ def build_dataset_context(raw_df, dataset_name, column_mapping):
         "best_category": category_sales.iloc[0]["product_category"],
     }
     summary, recommendations = business_summary(clean_df, kpis, sentiment_pct, issues, anomalies, india_forecast, tn_forecast)
-    ai_context_text = build_ai_context(clean_df, kpis, sentiment_pct, keywords, issues, anomalies, india_forecast, live_forecast, tn_forecast, recommendations, metrics)
+    ai_context_text = build_ai_context(clean_df, kpis, sentiment_pct, keywords, issues, anomalies, india_forecast, live_forecast, tn_forecast, recommendations, metrics, nlp_insights)
     ai_context_text += f"""
 
 CRM forecast center:
@@ -2846,6 +3020,7 @@ Territory statuses: {', '.join([f"{row.region}: {row.status}" for row in crm_for
         "sentiment_pct": sentiment_pct,
         "keywords": keywords,
         "issues": issues,
+        "nlp_insights": nlp_insights,
         "anomalies": anomalies,
         "crm_forecast": crm_forecast,
         "region_sales": region_sales,
@@ -2877,6 +3052,7 @@ def render_processed_downloads(context):
         context["tn_forecast"],
         context["crm_forecast"],
         context["anomalies"],
+        context.get("nlp_insights"),
     )
     download_cols = st.columns(4)
     with download_cols[0]:
@@ -3085,6 +3261,72 @@ def render_live_forecast_pulse(dataset_name, processing_summary, metrics, live_f
             st.info(action)
 
 
+def render_nlp_insight_extraction(nlp_insights):
+    st.markdown("### NLP-Based Insight Extraction")
+    st.caption("Customer review and feedback text is converted into themes, key phrases, urgency signals, sentiment patterns, and next actions.")
+
+    nlp_cols = st.columns(4)
+    nlp_metrics = [
+        ("Reviews Analyzed", f"{nlp_insights.get('review_count', 0):,}", "Feedback rows with usable text"),
+        ("Top Theme", nlp_insights.get("top_theme", "No theme"), "Most repeated issue signal"),
+        ("Negative Rate", f"{nlp_insights.get('negative_rate', 0)}%", "Reviews with negative language"),
+        ("Urgent Mentions", str(nlp_insights.get("urgent_mentions", 0)), "Escalation-style wording"),
+    ]
+    for col, (label, value, detail) in zip(nlp_cols, nlp_metrics):
+        with col:
+            metric_card(label, value, detail)
+
+    left, right = st.columns(2)
+    with left:
+        st.markdown("#### Extracted Key Phrases")
+        key_phrases = nlp_insights.get("key_phrases")
+        if key_phrases is not None and len(key_phrases):
+            st.dataframe(key_phrases, width="stretch", hide_index=True)
+        else:
+            st.info("No strong phrases found yet.")
+    with right:
+        st.markdown("#### Intent Signals")
+        intent_signals = nlp_insights.get("intent_signals")
+        if intent_signals is not None and len(intent_signals):
+            st.dataframe(intent_signals, width="stretch", hide_index=True)
+        else:
+            st.info("No intent signals found yet.")
+
+    issue_col, sample_col = st.columns([0.9, 1.1])
+    with issue_col:
+        st.markdown("#### Issue Themes")
+        issue_themes = nlp_insights.get("issue_themes")
+        if issue_themes is not None and len(issue_themes):
+            st.dataframe(issue_themes, width="stretch", hide_index=True)
+    with sample_col:
+        st.markdown("#### Review Samples To Inspect")
+        review_samples = nlp_insights.get("review_samples")
+        if review_samples is not None and len(review_samples):
+            st.dataframe(review_samples, width="stretch", hide_index=True)
+        else:
+            st.info("No review samples available.")
+
+    segment_left, segment_right = st.columns(2)
+    with segment_left:
+        st.markdown("#### Category Sentiment")
+        category_sentiment = nlp_insights.get("category_sentiment")
+        if category_sentiment is not None and len(category_sentiment):
+            st.dataframe(category_sentiment, width="stretch", hide_index=True)
+        else:
+            st.info("No category sentiment split available.")
+    with segment_right:
+        st.markdown("#### Region Sentiment")
+        region_sentiment = nlp_insights.get("region_sentiment")
+        if region_sentiment is not None and len(region_sentiment):
+            st.dataframe(region_sentiment, width="stretch", hide_index=True)
+        else:
+            st.info("No region sentiment split available.")
+
+    st.markdown("#### NLP Recommended Actions")
+    for action in nlp_insights.get("actions", []):
+        st.info(action)
+
+
 def render_analytics_workspace(clean_df, validation, forecast_chart, region_sales, category_sales, live_forecast, metrics, anomalies):
     render_page_band("Analytics", "Forecast diagnostics, territory movement, validation quality, and live trend monitoring.")
 
@@ -3240,9 +3482,10 @@ def render_assistant_workspace(clean_df, kpis, sentiment_pct, issues, anomalies,
         "Which territories are at risk?",
         "Predict next 30 days sales",
         "Explain model accuracy",
+        "Extract NLP customer themes",
         "Give business recommendations",
     ]
-    prompt_cols = st.columns([1, 1, 1, 1, 1])
+    prompt_cols = st.columns(len(quick_prompts))
     pending_question = None
     for col, prompt in zip(prompt_cols, quick_prompts):
         with col:
@@ -3317,6 +3560,7 @@ tn_forecast = dataset_context["tn_forecast"]
 sentiment_pct = dataset_context["sentiment_pct"]
 keywords = dataset_context["keywords"]
 issues = dataset_context["issues"]
+nlp_insights = dataset_context["nlp_insights"]
 anomalies = dataset_context["anomalies"]
 crm_forecast = dataset_context["crm_forecast"]
 region_sales = dataset_context["region_sales"]
@@ -3349,6 +3593,7 @@ if current_page == "Home":
 
 elif current_page == "Analytics":
     render_live_forecast_pulse(dataset_name, processing_summary, metrics, live_forecast, crm_forecast, anomalies, recommendations)
+    render_nlp_insight_extraction(nlp_insights)
     render_analytics_workspace(clean_df, validation, forecast_chart, region_sales, category_sales, live_forecast, metrics, anomalies)
 
 elif current_page == "Assistant":
@@ -3503,6 +3748,7 @@ elif current_page == "Reports":
     st.write(sentiment_pct)
     if keywords:
         st.write("Top keywords:", ", ".join([word for word, _count in keywords]))
+    render_nlp_insight_extraction(nlp_insights)
 
     cleaned_csv = clean_df.to_csv(index=False).encode("utf-8")
     st.download_button("Download cleaned dataset CSV", cleaned_csv, "cleaned_sales_data.csv", "text/csv")
@@ -3522,5 +3768,5 @@ elif current_page == "Reports":
     ).to_csv(index=False).encode("utf-8")
     st.download_button("Download latest prediction CSV", prediction_output, "prediction_results.csv", "text/csv")
 
-    report_bytes = pdf_report(summary, recommendations, kpis, metrics, india_forecast, live_forecast, tn_forecast, crm_forecast, anomalies)
+    report_bytes = pdf_report(summary, recommendations, kpis, metrics, india_forecast, live_forecast, tn_forecast, crm_forecast, anomalies, nlp_insights)
     st.download_button("Download PDF report", report_bytes, "sales_prediction_ai_report.pdf", "application/pdf")
