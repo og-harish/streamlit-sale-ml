@@ -3055,6 +3055,36 @@ def render_home_dashboard(clean_df, kpis, metrics, leaderboard, live_forecast, i
     render_project_assets(compact=True)
 
 
+def render_live_forecast_pulse(dataset_name, processing_summary, metrics, live_forecast, crm_forecast, anomalies, recommendations):
+    missing_before = max(processing_summary.get("missing_before", 0), 1)
+    fixed_missing = max(processing_summary.get("missing_before", 0) - processing_summary.get("missing_after", 0), 0)
+    data_quality = int(np.clip(82 + min(12, processing_summary.get("mapped_fields", 0)) + min(6, fixed_missing / missing_before * 10), 0, 99))
+    model_health = "Strong" if metrics["Accuracy"] >= 80 else "Watch" if metrics["Accuracy"] >= 65 else "Needs review"
+    risk_level = "High" if len(anomalies) >= 5 or crm_forecast["confidence"] < 62 else "Medium" if len(anomalies) else "Low"
+    pulse_cols = st.columns(5)
+    pulse_metrics = [
+        ("Active Dataset", dataset_name, f"{processing_summary['clean_rows']:,} processed rows"),
+        ("Data Quality", f"{data_quality}%", f"{processing_summary['mapped_fields']} mapped fields"),
+        ("Model Health", model_health, f"RMSE {metrics['RMSE']:.0f}"),
+        ("Forecast Direction", live_forecast["direction"].title(), f"Next 7 days {inr(live_forecast['next_7'])}"),
+        ("Risk Level", risk_level, f"{len(anomalies)} anomaly alerts"),
+    ]
+    st.markdown("### Live Forecast Pulse")
+    for col, (label, value, detail) in zip(pulse_cols, pulse_metrics):
+        with col:
+            metric_card(label, value, detail)
+
+    action_cols = st.columns(3)
+    action_items = [
+        recommendations[0] if recommendations else "Review best-performing region and repeat the strongest campaign mix.",
+        recommendations[1] if len(recommendations) > 1 else "Check weak territories before increasing promotion spend.",
+        f"Review forecast confidence at {crm_forecast['confidence']}% and close the quota gap of {inr(crm_forecast['quota_gap'])}.",
+    ]
+    for col, action in zip(action_cols, action_items):
+        with col:
+            st.info(action)
+
+
 def render_analytics_workspace(clean_df, validation, forecast_chart, region_sales, category_sales, live_forecast, metrics, anomalies):
     render_page_band("Analytics", "Forecast diagnostics, territory movement, validation quality, and live trend monitoring.")
 
@@ -3314,9 +3344,11 @@ if current_page == "Documents":
 
 if current_page == "Home":
     render_home_dashboard(clean_df, kpis, metrics, leaderboard, live_forecast, india_forecast, crm_forecast, recommendations, region_sales, category_sales)
+    render_live_forecast_pulse(dataset_name, processing_summary, metrics, live_forecast, crm_forecast, anomalies, recommendations)
     render_processing_pipeline(processing_summary, dataset_name)
 
 elif current_page == "Analytics":
+    render_live_forecast_pulse(dataset_name, processing_summary, metrics, live_forecast, crm_forecast, anomalies, recommendations)
     render_analytics_workspace(clean_df, validation, forecast_chart, region_sales, category_sales, live_forecast, metrics, anomalies)
 
 elif current_page == "Assistant":

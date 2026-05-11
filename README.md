@@ -6,6 +6,7 @@ A Streamlit Community Cloud-ready professional sales forecasting workspace for f
 
 - Full dashboard loads with the included sample dataset, then drag-and-drop CSV upload can replace it through an explicit **Process Dataset** workflow
 - Automatic post-upload processing pipeline with field mapping, cleaning, duplicate handling, and engineered forecasting features
+- Included messy CSV test file at `sample_data/messy_sales_test.csv` for validating auto-detection, missing-value cleanup, duplicate removal, forecasts, reports, and assistant answers
 - Auto-detect flexible sales columns such as `order_date`, `city`, `product`, `qty`, `sales`, `amount`, `price`, `feedback`, and `comment`
 - Manually map columns with dropdowns if the app cannot detect them automatically
 - Work with messy CSV files by filling missing region/category/review values and calculating revenue from `quantity x price` when possible
@@ -14,6 +15,7 @@ A Streamlit Community Cloud-ready professional sales forecasting workspace for f
 - CRM-style left navigation for Home, Reports, Analytics, Sales modules, and Activity modules
 - CRM-style Forecast Center inspired by professional sales forecasting workflows
 - Quota, weighted forecast, closed revenue, quota gap, pipeline coverage, and confidence metrics
+- Live Forecast Pulse for data quality, model health, forecast direction, anomaly risk, and next best actions
 - Forecast categories for Closed, Committed, Best Case, Pipeline, and Omitted revenue
 - Territory forecast rollups with manager ownership and risk status
 - Pipeline stage probability chart for weighted revenue planning

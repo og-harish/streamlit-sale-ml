@@ -1,0 +1,41 @@
+Order Date,City,Item,Qty,Sales Amount,Offer,Feedback
+2026-01-01,Chennai,Laptop,12,540000,5,Great product and fast delivery
+2026-01-02,Coimbatore,Phone,18,450000,10,Good value
+bad-date,Madurai,Tablet,,190000,15,Delivery delay
+2026-01-04,Chennai,Laptop,12,540000,5,Great product and fast delivery
+2026-01-04,Chennai,Laptop,12,540000,5,Great product and fast delivery
+2026-01-06,Salem,Headphones,35,,20,Packaging issue
+2026-01-07,,Phone,22,520000,,Excellent support
+2026-01-08,Tiruchirappalli,Accessories,55,165000,8,Average experience
+2026-01-09,Erode,Laptop,9,420000,12,Price is high
+2026-01-10,Vellore,Tablet,14,280000,0,Works well
+2026-01-11,Chennai,Phone,25,625000,7,Fast shipping
+2026-01-12,Coimbatore,Laptop,10,480000,9,Good service
+2026-01-13,Madurai,Accessories,60,180000,11,Useful bundle
+2026-01-14,Salem,Phone,19,456000,13,Late delivery
+2026-01-15,Tiruppur,Tablet,16,304000,6,Quality is good
+2026-01-16,Chennai,Headphones,42,126000,18,Sound quality good
+2026-01-17,Coimbatore,Accessories,65,201500,5,Happy customer
+2026-01-18,Madurai,Laptop,8,392000,10,Needs better support
+2026-01-19,Salem,Phone,21,504000,12,Good purchase
+2026-01-20,Erode,Tablet,13,247000,4,Average
+2026-01-21,Vellore,Laptop,11,533500,8,Excellent product
+2026-01-22,Chennai,Accessories,72,230400,10,Good offer
+2026-01-23,Coimbatore,Phone,24,588000,9,Fast delivery
+2026-01-24,Madurai,Headphones,38,117800,14,Packaging damaged
+2026-01-25,Salem,Laptop,7,350000,16,High price
+2026-01-26,Tiruchirappalli,Tablet,17,331500,7,Good quality
+2026-01-27,Erode,Phone,23,552000,10,Excellent support
+2026-01-28,Vellore,Accessories,58,185600,12,Useful product
+2026-01-29,Chennai,Laptop,13,663000,6,Premium feel
+2026-01-30,Coimbatore,Tablet,18,351000,8,Good value
+2026-01-31,Madurai,Phone,20,480000,15,Delivery delay
+2026-02-01,Salem,Accessories,70,217000,7,Good
+2026-02-02,Tiruppur,Laptop,9,459000,9,Works well
+2026-02-03,Erode,Headphones,45,139500,11,Comfortable
+2026-02-04,Vellore,Phone,26,650000,5,Excellent
+2026-02-05,Chennai,Tablet,19,380000,10,Good support
+2026-02-06,Coimbatore,Accessories,74,236800,8,Helpful bundle
+2026-02-07,Madurai,Laptop,6,306000,20,Price concern
+2026-02-08,Salem,Phone,22,550000,9,Fast delivery
+2026-02-09,Tiruchirappalli,Tablet,15,300000,6,Good product
